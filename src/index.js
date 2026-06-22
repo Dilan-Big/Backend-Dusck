@@ -1,5 +1,7 @@
 import express from 'express';
 
+import authRoutes from './routes/authentication.routes.js';
+
 const app = express();
 
 app.get('/health',(req, res)=>{
@@ -7,6 +9,8 @@ app.get('/health',(req, res)=>{
         msg:'Servidor en funcionamiento'
     });
 });
+
+app.use('/api/auth',authRoutes);
 
 app.listen(3000, ()=>{
     console.log ("Servidor lansado en http://localhost:3000")
