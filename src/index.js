@@ -1,10 +1,13 @@
 import express from 'express';
 
-import authRoutes from './routes/authentication.routes.js';
+import dbConection from './config/mongo.config.js';
 
+import authRoutes from './routes/authentication.routes.js';
 import userRoutes from './routes/user.routes.js';
 
 const app = express();
+
+dbConection();
 
 app.get('/health',(req, res)=>{
     res.json({
