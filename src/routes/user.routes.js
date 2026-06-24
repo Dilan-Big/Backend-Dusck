@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createUser, getUser } from "../controllers/user.controller.js";
+import { createUser, getUser, getUserById } from "../controllers/user.controller.js";
 
 const router = Router();
 
@@ -7,11 +7,7 @@ router.post('/', createUser);
 
 router.get('/',getUser);
 
-router.get('/:id',(req, res)=>{
-    res.json({
-        msg:"Se obtiene un usuario por id"
-    });
-});
+router.get('/:id',getUserById);
 
 router.patch('/:id', (req, res)=>{
     res.json({
