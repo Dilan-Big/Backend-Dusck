@@ -1,4 +1,4 @@
-import { dbCreateUser, dbGetUsers } from "../services/user.service.js";
+import { dbCreateUser, dbGetUserById, dbGetUsers } from "../services/user.service.js";
 
 const createUser = async (req, res) => {
 
@@ -37,4 +37,22 @@ const getUser = async (req, res) => {
 
 };
 
-export { createUser, getUser };
+const getUserById = async (req, res)=> {
+
+    try {
+        const id = req.params.id
+    const data = await dbGetUserById(id)
+    res.json({
+        msg:"Se obtiene un usuario por id",data
+    });
+
+    } catch (error) {
+       console.error(error)
+        res.json({
+            msg: "Ocurrio un error a obtener el usuario por ID"
+        }) 
+    }
+    
+};
+
+export { createUser, getUser, getUserById };

@@ -8,4 +8,10 @@ const dbGetUsers = async () => {
     return await UserModel.find();
 }
 
-export {dbCreateUser, dbGetUsers};
+const dbGetUserById = async (id) =>{
+ return await UserModel.findOne({
+    _id: id
+ })
+}
+
+export {dbCreateUser, dbGetUsers, dbGetUserById};
