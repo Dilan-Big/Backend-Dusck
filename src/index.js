@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 
 import dbConection from './config/mongo.config.js';
 
@@ -8,6 +9,9 @@ import userRoutes from './routes/user.routes.js';
 const app = express();
 
 app.use(express.json());
+app.use( cors({
+    origin:'http://localhost:4200'
+}));
 
 dbConection();
 

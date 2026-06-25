@@ -1,0 +1,15 @@
+info:
+  name: obtener usuario por ID
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: http://localhost:3000/api/users/6a3c585474f7c571b9f6c16c
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

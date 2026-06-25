@@ -8,10 +8,24 @@ const dbGetUsers = async () => {
     return await UserModel.find();
 }
 
-const dbGetUserById = async (id) =>{
- return await UserModel.findOne({
-    _id: id
- })
+const dbGetUserById = async (id) => {
+    return await UserModel.findOne({
+        _id: id
+    })
 }
 
-export {dbCreateUser, dbGetUsers, dbGetUserById};
+const dbUpdateUserById = async (id, userUpdate) => {
+    return await UserModel.findOneAndUpdate(
+        { _id: id }, // objeto de consulta
+        userUpdate, // datos para actualizar
+        { new: true} // devolvera datos actualizados
+    );
+}
+
+const dbDeleteUserById = async (id) => {
+    return await UserModel.findOneAndDelete(
+        {_id: id}
+    )
+}
+
+export { dbCreateUser, dbGetUsers, dbGetUserById, dbUpdateUserById, dbDeleteUserById };

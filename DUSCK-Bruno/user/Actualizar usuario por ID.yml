@@ -1,0 +1,24 @@
+info:
+  name: Actualizar usuario por ID
+  type: http
+  seq: 3
+
+http:
+  method: PATCH
+  url: http://localhost:3000/api/users/6a3c585474f7c571b9f6c16c
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Carlos Pérez"
+        //"nickname": "juanpi99",
+        //"email": "juan.perez@example.com",
+        //"password": "Password123!"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
