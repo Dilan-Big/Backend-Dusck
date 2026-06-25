@@ -1,4 +1,4 @@
-import { dbCreateUser, dbGetUserById, dbGetUsers } from "../services/user.service.js";
+import { dbCreateUser, dbDeleteUserById, dbGetUserById, dbGetUsers, dbUpdateUserById } from "../services/user.service.js";
 
 const createUser = async (req, res) => {
 
@@ -37,22 +37,57 @@ const getUser = async (req, res) => {
 
 };
 
-const getUserById = async (req, res)=> {
+const getUserById = async (req, res) => {
 
     try {
         const id = req.params.id
-    const data = await dbGetUserById(id)
-    res.json({
-        msg:"Se obtiene un usuario por id",data
-    });
+        const data = await dbGetUserById(id)
+        res.json({
+            msg: "Se obtiene un usuario por id", data
+        });
 
     } catch (error) {
-       console.error(error)
+        console.error(error)
         res.json({
             msg: "Ocurrio un error a obtener el usuario por ID"
-        }) 
+        })
     }
-    
+
 };
 
-export { createUser, getUser, getUserById };
+const updateUserById = async (req, res) => {
+    try {
+
+        const id = req.params.id
+        const inputData = req.body
+        const data = await dbUpdateUserById(id, inputData)
+        res.json({
+            msg: "Se actualiza usuario po ID", data
+        });
+
+    } catch (error) {
+        console.error(error)
+        res.json({
+            msg: "Ocurio un error al actualizar usuario por ID"
+        })
+
+    };
+}
+
+const deleteUserById = async (req, res) => {
+    try {
+        const id = req.params.id
+        const data = await dbDeleteUserById(id)
+        res.json({
+            msg: "Se elimina usuario por ID",data
+        })
+    } catch (error) {
+        console.error(error)
+        res.json({
+            msg: "Ocurrio un error al eliminiar usuario"
+        })
+
+    };
+}
+
+export { createUser, getUser, getUserById, updateUserById, deleteUserById };

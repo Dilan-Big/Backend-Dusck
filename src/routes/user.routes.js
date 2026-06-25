@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createUser, getUser, getUserById } from "../controllers/user.controller.js";
+import { createUser, deleteUserById, getUser, getUserById, updateUserById } from "../controllers/user.controller.js";
 
 const router = Router();
 
@@ -9,16 +9,8 @@ router.get('/',getUser);
 
 router.get('/:id',getUserById);
 
-router.patch('/:id', (req, res)=>{
-    res.json({
-        msg:"Se actualiza usuario por id"
-    });
-});
+router.patch('/:id', updateUserById);
 
-router.delete('/:id',(req, res)=>{
-    res.json({
-        msg:"Se elimina usuario por id"
-    });
-});
+router.delete('/:id', deleteUserById);
 
 export default router;
