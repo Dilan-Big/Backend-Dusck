@@ -2,7 +2,8 @@ import {
     dbCreateCategory,
     dbGetCategories,
     dbGetCategoryById,
-    dbUpdateCategoryById
+    dbUpdateCategoryById,
+    dbDeleteCategoryById
  } from "../services/category.service.js";
 
 
@@ -70,9 +71,26 @@ const updateCategoryById = async (req, res) => {
     }
 }
 
+const deleteCategoryById = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const data = await dbDeleteCategoryById(id);
+        res.json({
+            msg: "Se elimina categoria por ID",
+            data,
+        });
+    } catch (error) {
+        console.error(error);
+        res.json({
+            msg: "Ocurrio un error al eliminar categoria"
+        });
+    }
+}
+
 export {
     createCategory,
     getCategory,
     getCategoryById,
-    updateCategoryById
+    updateCategoryById,
+    deleteCategoryById
 }

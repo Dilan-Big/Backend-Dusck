@@ -28,4 +28,10 @@ const dbDeleteUserById = async (id) => {
     )
 }
 
-export { dbCreateUser, dbGetUsers, dbGetUserById, dbUpdateUserById, dbDeleteUserById };
+export { 
+    dbCreateUser, 
+    dbGetUsers, 
+    dbGetUserById, 
+    dbUpdateUserById, 
+    dbDeleteUserById 
+};
