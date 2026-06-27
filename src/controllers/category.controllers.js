@@ -34,9 +34,24 @@ const getCategory = async (req, res) => {
     }
 }
 
-
+const getCategoryById = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const data = await dbGetCategoryById(id);
+        res.json({
+            msg: "Se obtiene una categoria por ID",
+            data
+        });
+    } catch (error) {
+        console.error(error);
+        res.json({
+            msg: "Ocurrio un error al obtener la categoria por ID"
+        });
+    }
+}
 
 export {
     createCategory,
-    getCategory
+    getCategory,
+    getCategoryById
 }
