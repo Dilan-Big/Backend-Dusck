@@ -4,6 +4,11 @@ const dbCreateCategory = async (category) => {
     return await CategoryModel.create(category);
 }
 
+const dbGetCategory = async () => {
+    return await CategoryModel.find();
+}
+
 export {
-    dbCreateCategory
+    dbCreateCategory,
+    dbGetCategory
 }

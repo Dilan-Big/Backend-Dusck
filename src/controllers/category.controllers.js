@@ -1,4 +1,7 @@
-import { dbCreateCategory } from "../services/category.service.js";
+import { 
+    dbCreateCategory,
+    dbGetCategory
+ } from "../services/category.service.js";
 
 
 const createCategory = async (req, res) => {
@@ -16,6 +19,24 @@ const createCategory = async (req, res) => {
     }
 }
 
+const getCategory = async (req, res) => {
+    try {
+        const data = await dbGetCategory();
+        res.json({
+            msg: "Se obtiene listado por categoria",
+            data,
+        });
+    } catch (error) {
+        console.error(error);
+        res.json({
+            msg: "Ocurrio un error al obtner la categoria"
+        });
+    }
+}
+
+
+
 export {
-    createCategory
+    createCategory,
+    getCategory
 }
