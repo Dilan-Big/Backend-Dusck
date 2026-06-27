@@ -1,6 +1,8 @@
 import { 
     dbCreateCategory,
-    dbGetCategory
+    dbGetCategories,
+    dbGetCategoryById,
+    dbUpdateCategoryById
  } from "../services/category.service.js";
 
 
@@ -21,7 +23,7 @@ const createCategory = async (req, res) => {
 
 const getCategory = async (req, res) => {
     try {
-        const data = await dbGetCategory();
+        const data = await dbGetCategories();
         res.json({
             msg: "Se obtiene listado por categoria",
             data,
@@ -48,10 +50,29 @@ const getCategoryById = async (req, res) => {
             msg: "Ocurrio un error al obtener la categoria por ID"
         });
     }
+
+}
+
+const updateCategoryById = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const inputData = req.body;
+        const data = await dbUpdateCategoryById(id, inputData);
+        res.json({
+            msg: "Se actuliza categoria por ID",
+            data
+        });
+    } catch (error) {
+        console.error(error);
+        res.json({
+            msg: "Ocurrio un error al actualizar categoria por ID"
+        });
+    }
 }
 
 export {
     createCategory,
     getCategory,
-    getCategoryById
+    getCategoryById,
+    updateCategoryById
 }
