@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createUser } from "../controllers/user.controller.js";
 
 const router = Router();
 
@@ -8,11 +9,7 @@ router.post('/login', (req, res) => {
     });
 });
 
-router.post('/register', (req, res) => {
-    res.json({
-        msg: "Registro publico de usuarios"
-    });
-});
+router.post('/register', createUser);
 
 router.get('/renew-token', (req, res) => {
     res.json({
