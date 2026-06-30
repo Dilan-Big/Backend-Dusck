@@ -1,3 +1,4 @@
+import { encryptedPassword } from "../helpers/bycryp.helper.js";
 import {
   dbCreateUser,
   dbDeleteUserById,
@@ -9,6 +10,9 @@ import {
 const createUser = async (req, res) => {
   try {
     const inputData = req.body;
+
+    inputData.password = encryptedPassword(inputData.password)
+
     const data = await dbCreateUser(inputData);
     res.json({
       msg: "Se registra un usuario",
