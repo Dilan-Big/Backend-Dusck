@@ -14,6 +14,12 @@ const dbGetUserById = async (id) => {
     })
 }
 
+const dbGetUserByIdEmail = async (email) => {
+    return await UserModel.findOne({
+        email
+    })
+}
+
 const dbUpdateUserById = async (id, userUpdate) => {
     return await UserModel.findOneAndUpdate(
         { _id: id }, // objeto de consulta
@@ -33,5 +39,6 @@ export {
     dbGetUsers, 
     dbGetUserById, 
     dbUpdateUserById, 
-    dbDeleteUserById 
+    dbDeleteUserById,
+    dbGetUserByIdEmail 
 };
