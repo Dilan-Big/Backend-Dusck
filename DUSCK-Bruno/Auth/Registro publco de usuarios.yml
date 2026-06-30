@@ -1,11 +1,11 @@
 info:
-  name: Eliminar usuario por ID
+  name: Registro publco de usuarios
   type: http
-  seq: 5
+  seq: 1
 
 http:
-  method: DELETE
-  url: http://localhost:3000/api/users/6a3c58584a2fdf3e6c6706ae
+  method: POST
+  url: http:/localhost:3000/api/auth/register
   auth: inherit
 
 settings:

@@ -5,6 +5,7 @@ import dbConection from './config/mongo.config.js';
 
 import authRoutes from './routes/authentication.routes.js';
 import userRoutes from './routes/user.routes.js';
+import productsRoutes from './routes/products.routes.js'
 
 const app = express();
 
