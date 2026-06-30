@@ -14,6 +14,14 @@ const dbGetUserById = async (id) => {
     })
 }
 
+const dbGetUserByEmail = async (email) => {
+    return await UserModel.findOne(
+        {
+            email
+        }
+    )
+}
+
 const dbUpdateUserById = async (id, userUpdate) => {
     return await UserModel.findOneAndUpdate(
         { _id: id }, // objeto de consulta
@@ -28,4 +36,4 @@ const dbDeleteUserById = async (id) => {
     )
 }
 
-export { dbCreateUser, dbGetUsers, dbGetUserById, dbUpdateUserById, dbDeleteUserById };
+export { dbCreateUser, dbGetUsers, dbGetUserById, dbUpdateUserById, dbDeleteUserById, dbGetUserByEmail };

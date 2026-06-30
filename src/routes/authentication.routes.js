@@ -1,13 +1,10 @@
 import { Router } from "express";
 import { createUser } from "../controllers/user.controller.js";
+import { loginUser } from "../controllers/auth.controllers.js";
 
 const router = Router();
 
-router.post('/login', (req, res) => {
-    res.json({
-        msg: "Se genera logeo"
-    });
-});
+router.post('/login', loginUser );
 
 router.post('/register', createUser);
 
