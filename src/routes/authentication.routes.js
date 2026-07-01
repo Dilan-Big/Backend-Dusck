@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { createUser } from "../controllers/user.controller.js";
-import { loginUser } from "../controllers/auth.controllers.js";
+import { loginUser, renewToken } from "../controllers/auth.controllers.js";
+import authenticationUser from "../middleware/autentication.middleware.js";
 
 const router = Router();
 
@@ -8,10 +9,6 @@ router.post('/login', loginUser );
 
 router.post('/register', createUser);
 
-router.get('/renew-token', (req, res) => {
-    res.json({
-        msg: "Renovar Token"
-    });
-});
+router.get('/renew-token', authenticationUser, renewToken);
 
 export default router;

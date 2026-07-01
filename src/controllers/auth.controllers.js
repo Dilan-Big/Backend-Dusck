@@ -52,4 +52,12 @@ const loginUser = async (req, res) => {
     });
 };
 
-export {loginUser};
+const renewToken = (req, res) => {
+    const payload= req.payload
+    const userFound = req.user
+    res.json({
+        msg: "Renovar Token",payload, userFound
+    });
+}
+
+export {loginUser, renewToken};
