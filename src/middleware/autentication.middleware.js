@@ -40,6 +40,10 @@ const authenticationUser = async (req, res, next) => {
 
     delete userData.password
 
+    delete userData.createdAt
+
+    delete userData.updatedAt
+
     console.log("Soy el midleware de autenticacion", payload)
 
     req.payload = payload

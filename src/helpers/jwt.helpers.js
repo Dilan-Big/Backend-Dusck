@@ -5,6 +5,8 @@ const generateToken = (payload) => {
 }
 
 
+
+
 const validadeToken = (token) => { 
     try {
       return jwt.verify(token, 'REDACTED_HISTORICAL_JWT_SECRET');
