@@ -12,6 +12,7 @@ const autenticationUser = async (req, res, next) => {
     }
 
     const payload = validateToken(token)
+
     if (! payload) {
         return res.status(401).json({
             msg: "Token no valido fue expirado"
@@ -23,6 +24,7 @@ const autenticationUser = async (req, res, next) => {
     
 
     const userFound = await dbGetUserById(payload._id)
+    
     if (! userFound) {
         return res.status(401).json({
             msg: "Token no valido, no existe el usuario "
@@ -38,6 +40,10 @@ const autenticationUser = async (req, res, next) => {
     const userData = userFound.toObject()
 
     delete userData.password
+
+    delete userData.createdAt
+
+    delete userData.updatedAt
 
     console.log("soy el midelware de autenticacion", payload)
 

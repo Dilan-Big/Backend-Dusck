@@ -43,6 +43,7 @@ const loginUser =  async (req, res) => {
     delete userData.password
 
     delete userData.createdAt
+
     delete userData.updatedAt
 
     res.json({
@@ -56,12 +57,31 @@ const loginUser =  async (req, res) => {
 const renewToken = (req, res) => {
     const payload = req.payload
     const userFound = req.user
+
+    const newPayload = {
+          _id: userFound._id,
+          name: userFound.name,
+          email: userFound.email,
+          nickname: userFound.nickname,
+          role: userFound.role,
+    };
+
+    const token = generarToken(newPayload)
+   
+    // const userData = userFound.toObject()
+
+    // delete userData.password
+
+    // delete userData.createdAt
+
+    // delete userData.updatedAt
+
+
     res.json({
         msg: "Renovar Token",
-        payload,
-        userFound
+        token,
+        data: userFound
     });
-
 }
 
 export{
