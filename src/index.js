@@ -24,6 +24,7 @@ app.get('/health',(req, res)=>{
 app.use('/api/auth',authRoutes);
 app.use('/api/users',userRoutes);
 
+
 app.listen(3000, ()=>{
     console.log ("Servidor lansado en http://localhost:3000")
 });
