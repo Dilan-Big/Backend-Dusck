@@ -1,11 +1,11 @@
 info:
-  name: Obtener roles
+  name: Crear Producto
   type: http
-  seq: 6
+  seq: 1
 
 http:
   method: GET
-  url: http://localhost:3000/api/roles
+  url: ""
   auth: inherit
 
 settings:
