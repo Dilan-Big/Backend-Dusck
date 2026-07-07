@@ -6,6 +6,7 @@ import dbConection from './config/mongo.config.js';
 import authRoutes from './routes/authentication.routes.js';
 import userRoutes from './routes/user.routes.js';
 import productsRoutes from './routes/products.routes.js'
+import roleRoutes from './routes/role.routes.js' 
 
 const app = express();
 
@@ -24,6 +25,7 @@ app.get('/health',(req, res)=>{
 
 app.use('/api/auth',authRoutes);
 app.use('/api/users',userRoutes);
+app.use('/api/roles',roleRoutes);
 
 app.listen(3000, ()=>{
     console.log ("Servidor lansado en http://localhost:3000")
