@@ -12,8 +12,17 @@ const dbGetProductById = async (id) => {
     return await ProductModel.findOne({_id: id});
 }
 
+const dbUpdateProductById = async (id, productUpdate) => {
+    return await ProductModel.findOneAndUpdate(
+        {_id: id},
+        productUpdate,
+        { returnDocument: 'after' }
+    );
+}
+
 export {
     dbcreateProduct,
     dbGetProduct,
-    dbGetProductById
+    dbGetProductById,
+    dbUpdateProductById
 }
