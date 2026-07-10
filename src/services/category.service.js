@@ -9,7 +9,7 @@ const dbGetCategories = async () => {
 }
 
 const dbGetCategoryById = async (id) => {
-    return await CategoryModel.findOne({_id: id})
+    return await CategoryModel.findOne({_id: id});
 }
 
 const dbUpdateCategoryById = async (id, categoryUpdate) => {
