@@ -1,4 +1,5 @@
-import { dbcreateProduct, dbGetProduct } from "../services/product.service.js";
+import { dbcreateProduct, dbGetProduct, dbGetProductById  } from "../services/product.service.js";
+import mongoose from "mongoose";
 
 const createProduct = async (req, res) => {
   try {
@@ -31,4 +32,30 @@ const getProduct = async (req, res) => {
     }
 }
 
-export { createProduct, getProduct };
+const getProductById = async (req, res) => {
+    try {
+        const id = req.params.id;
+                if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                msg: "El ID del producto no es válido"
+            });
+        }
+        const data = await dbGetProductById(id);
+                if (!data) {
+            return res.status(404).json({
+                msg: "El producto no se encuentra registrado"
+            });
+        }
+        res.json({
+            msg: "Producto obtenido exitosamente",
+            data
+        })
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            msg: "Error al obtener el producto"
+        });
+    }
+}
+
+export { createProduct, getProduct, getProductById };

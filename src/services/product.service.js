@@ -14,5 +14,6 @@ const dbGetProductById = async (id) => {
 
 export {
     dbcreateProduct,
-    dbGetProduct
+    dbGetProduct,
+    dbGetProductById
 }
