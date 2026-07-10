@@ -1,5 +1,6 @@
 import {
   dbcreateProduct,
+  dbDeleteProductById,
   dbGetProduct,
   dbGetProductById,
   dbUpdateProductById,
@@ -90,4 +91,31 @@ const updateProductById = async (req, res) => {
   }
 };
 
-export { createProduct, getProduct, getProductById, updateProductById };
+const deleteProductById = async (req, res) => {
+try {
+    const id = req.params.id;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({
+      msg: "El ID del producto no es válido"
+    });
+  }
+  const data = await dbDeleteProductById(id);
+  if (!data) {
+    return res.status(404).json({
+      msg: "El producto no se encuentra registrado"
+    })
+  }
+  res.json({
+    msg: "Producto eliminado exitosamente",
+    data
+  })
+} catch (error) {
+      console.error(error);
+    res.status(500).json({
+      msg: "Error al eliminar el producto",
+    });
+  }
+}
+
+
+export { createProduct, getProduct, getProductById, updateProductById, deleteProductById };
