@@ -27,11 +27,11 @@ const CategorySchema = new Schema({
         default: true
     },
     // Propiedad agregada para rastrear qué usuario creó la categoría
-    createdBy: {
-        type: Schema.Types.ObjectId,
-        ref: 'user', // Hace referencia a tu modelo 'user.model.js'
-        required: [true, 'El creador de la categoría es obligatorio']
-    }
+    // createdBy: {
+    //     type: Schema.Types.ObjectId,
+    //     ref: 'user', // Hace referencia a tu modelo 'user.model.js'
+    //     required: [true, 'El creador de la categoría es obligatorio']
+    // }
 }, {
     versionKey: false,
     timestamps: true
