@@ -1,4 +1,4 @@
-import bcrypt, { hash } from "bcrypt"
+import bcrypt from "bcrypt"
 
 const encryptedPassword = (originalPassword) => {
     const salt = bcrypt.genSaltSync (5)

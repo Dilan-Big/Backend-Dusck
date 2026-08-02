@@ -29,12 +29,11 @@ const ProductSchema = new Schema({
     stock: {
         type: Number,
         required: [true, 'El stock es obligatorio'],
-        min: [0, 'El stock no puede ser negativo'],
-        default: 0
+        min: [0, 'El stock no puede ser negativo']
     },
     images: {
-        type: [String],  // Array de URLs de imágenes
-        default: []
+        type: String,  // Array de URLs de imágenes
+        default: ''
     },
     category: {
         type: Schema.Types.ObjectId,
@@ -44,7 +43,7 @@ const ProductSchema = new Schema({
     createdBy: {
         type: Schema.Types.ObjectId,
         ref: 'user',  // Referencia a tu modelo de usuario
-        required: [true, 'El creador del producto es obligatorio']
+        //required: [true, 'El creador del producto es obligatorio']
     },
     isActive: {
         type: Boolean,
