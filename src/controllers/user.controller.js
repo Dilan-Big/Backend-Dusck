@@ -10,9 +10,9 @@ import {
 const createUser = async (req, res) => {
   try {
     const inputData = req.body;
-
-    
     inputData.password = encryptedPassword(inputData.password)
+
+    delete inputData.role;   // <- ignora cualquier rol que intenten mandar desde el registro público
 
     const data = await dbCreateUser(inputData);
     if( !data ) {
