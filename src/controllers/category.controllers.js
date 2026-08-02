@@ -17,7 +17,7 @@ const createCategory = async (req, res) => {
         })
     } catch (error) {
         res.json({
-            msg: "Ocurrio un Error al obtener la categoria"
+            msg: "Ocurrio un Error al registrar una  categoria"
         });
     }
 }

@@ -11,9 +11,16 @@ const createUser = async (req, res) => {
   try {
     const inputData = req.body;
 
+    
     inputData.password = encryptedPassword(inputData.password)
 
     const data = await dbCreateUser(inputData);
+    if( !data ) {
+      return res.status(400).json({
+        msg: "El usuario ya esta registado"
+      });
+    }
+
     res.json({
       msg: "Se registra un usuario",
       data,
