@@ -2,7 +2,7 @@ import UserModel from "../models/user.model.js";
 
 const dbCreateUser = async (user) => {
     return await UserModel.create(user);
-};
+}
 
 const dbGetUsers = async () => {
     return await UserModel.find();
@@ -11,6 +11,12 @@ const dbGetUsers = async () => {
 const dbGetUserById = async (id) => {
     return await UserModel.findOne({
         _id: id
+    })
+}
+
+const dbGetUserByIdEmail = async (email) => {
+    return await UserModel.findOne({
+        email
     })
 }
 
@@ -28,4 +34,11 @@ const dbDeleteUserById = async (id) => {
     )
 }
 
-export { dbCreateUser, dbGetUsers, dbGetUserById, dbUpdateUserById, dbDeleteUserById };
+export { 
+    dbCreateUser, 
+    dbGetUsers, 
+    dbGetUserById, 
+    dbUpdateUserById, 
+    dbDeleteUserById,
+    dbGetUserByIdEmail 
+};
