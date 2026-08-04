@@ -7,7 +7,7 @@ import authRoutes from './routes/authentication.routes.js';
 import userRoutes from './routes/user.routes.js';
 import productsRoutes from './routes/products.routes.js'
 import roleRoutes from './routes/role.routes.js'
-import cartRoutes from './routes/cart.routes.js' 
+import cartRoutes from './routes/cart.routes.js'
 
 const app = express();
 
