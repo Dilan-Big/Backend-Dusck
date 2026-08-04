@@ -4,8 +4,51 @@ info:
   seq: 1
 
 http:
-  method: GET
-  url: ""
+  method: POST
+  url: http://localhost:3000/api/products
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Chaqueta Deportiva Running Azul",
+        "slug": "chaqueta-deportiva-running-azul",
+        "description": "Chaqueta deportiva ligera con tecnología de secado rápido y material transpirable. Perfecta para entrenamientos al aire libre, running y actividades deportivas.",
+        "brand": "ActivePro",
+        "gender": "mujer",
+        "price": 199900,
+        "discountPrice": 179900,
+        "images": [
+          "https://images.pexels.com/photos/6311612/pexels-photo-6311612.jpeg",
+          "https://images.pexels.com/photos/6550851/pexels-photo-6550851.jpeg"
+        ],
+        "variants": [
+          {
+            "size": "S",
+            "color": "Azul",
+            "stock": 10
+          },
+          {
+            "size": "M",
+            "color": "Azul",
+            "stock": 14
+          },
+          {
+            "size": "L",
+            "color": "Azul",
+            "stock": 9
+          }
+        ],
+        "tags": [
+          "chaqueta",
+          "running",
+          "deportivo",
+          "fitness",
+          "azul"
+        ],
+        "featured": true,
+        "status": true,
+        "createdUserId": "686bfa8a9f8b0b4d0c123456"
+      }
   auth: inherit
 
 settings:
