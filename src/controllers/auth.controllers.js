@@ -1,7 +1,8 @@
 
+
 import { verificatePassword } from "../helpers/bycryp.helper.js";
 import { dbGetUserByIdEmail } from "../services/user.service.js";
-import { generarToken } from "../helpers/jwt.helpers.js";
+import { generateToken } from "../helpers/jwt.helpers.js";
 
 const loginUser =  async (req, res) => {
 
@@ -30,7 +31,7 @@ const loginUser =  async (req, res) => {
         role: userFound.role
     }
 
-    const token = generarToken(payload)
+    const token = generateToken(payload)
     if( ! token) {
         return res.status(400).json({
             msg: "No se puede generar token",
@@ -51,6 +52,7 @@ const loginUser =  async (req, res) => {
         token,
         data: userData
     });
+
 }
 
 
@@ -66,7 +68,7 @@ const renewToken = (req, res) => {
           role: userFound.role,
     };
 
-    const token = generarToken(newPayload)
+    const token = generateToken(newPayload)
    
     // const userData = userFound.toObject()
 
@@ -77,6 +79,7 @@ const renewToken = (req, res) => {
     // delete userData.updatedAt
 
 
+
     res.json({
         msg: "Renovar Token",
         token,
@@ -84,7 +87,9 @@ const renewToken = (req, res) => {
     });
 }
 
+
 export{
     loginUser,
     renewToken
 }
+

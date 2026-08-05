@@ -1,3 +1,4 @@
+
 import { encryptedPassword } from "../helpers/bycryp.helper.js";
 import {
   dbCreateUser,
@@ -7,29 +8,24 @@ import {
   dbUpdateUserById,
 } from "../services/user.service.js";
 
+
 const createUser = async (req, res) => {
   try {
     const inputData = req.body;
     inputData.password = encryptedPassword(inputData.password)
 
-    delete inputData.role;   // <- ignora cualquier rol que intenten mandar desde el registro público
+        const data = await dbCreateUser(inputData)
 
-    const data = await dbCreateUser(inputData);
-    if( !data ) {
-      return res.status(400).json({
-        msg: "El usuario ya esta registado"
-      });
+        res.json({
+            msg: "Se registra un usuario",
+            data
+        });
+    } catch (error) {
+        res.json({
+            msg: "Ocurrio un error al obtener el usuario"
+        })
+
     }
-
-    res.json({
-      msg: "Se registra un usuario",
-      data,
-    });
-  } catch (error) {
-    res.json({
-      msg: "Ocurrio un error al registrar el usuario",
-    });
-  }
 };
 
 const getUser = async (req, res) => {
