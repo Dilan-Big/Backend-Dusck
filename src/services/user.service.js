@@ -34,6 +34,7 @@ const dbDeleteUserById = async (id) => {
     )
 }
 
+
 export { 
     dbCreateUser, 
     dbGetUsers, 
@@ -42,3 +43,4 @@ export {
     dbDeleteUserById,
     dbGetUserByIdEmail 
 };
+

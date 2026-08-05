@@ -1,10 +1,11 @@
+
 import { validateToken } from "../helpers/jwt.helpers.js";
-import { dbGetUserById } from "../services/user.service.js";
+import { dbGetUserById, dbGetUserByIdEmail } from "../services/user.service.js";
 
 const autenticationUser = async (req, res, next) => {
 
     const token = req.header("x-token")
-
+    
     if (! token) {
         return res.status(401).json({
             msg: "cadena del token vacia"
@@ -22,8 +23,9 @@ const autenticationUser = async (req, res, next) => {
     delete payload.exp
     delete payload.iat
     
+    
 
-    const userFound = await dbGetUserById(payload._id)
+    const userFound = await dbGetUserByIdEmail(payload.email)
     
     if (! userFound) {
         return res.status(401).json({
@@ -40,19 +42,15 @@ const autenticationUser = async (req, res, next) => {
     const userData = userFound.toObject()
 
     delete userData.password
-
     delete userData.createdAt
-
     delete userData.updatedAt
 
-    console.log("soy el midelware de autenticacion", payload)
 
     req.payload = payload
-
     req.user = userData
-
 
     next() 
 }
 
 export default autenticationUser
+
