@@ -1,16 +1,16 @@
 import {
-  dbcreateProduct,
+  dbCreateProduct,
   dbDeleteProductById,
   dbGetProduct,
   dbGetProductById,
   dbUpdateProductById,
-} from "../services/product.service.js";
+} from "../services/product.services.js";
 import mongoose from "mongoose";
 
 const createProduct = async (req, res) => {
   try {
     const inputData = req.body;
-    const data = await dbcreateProduct(inputData);
+    const data = await dbCreateProduct(inputData);
     res.json({
       msg: "Producto creado exitosamente",
       data,
@@ -73,7 +73,7 @@ const updateProductById = async (req, res) => {
         msg: "El ID del producto no es válido",
       });
     }
-  const data = await dbUpdateProductById(id, inputData);
+    const data = await dbUpdateProductById(id, inputData);
     if (!data) {
       return res.status(404).json({
         msg: "El producto no se encuentra registrado",
@@ -92,30 +92,35 @@ const updateProductById = async (req, res) => {
 };
 
 const deleteProductById = async (req, res) => {
-try {
+  try {
     const id = req.params.id;
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(400).json({
-      msg: "El ID del producto no es válido"
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        msg: "El ID del producto no es válido",
+      });
+    }
+    const data = await dbDeleteProductById(id);
+    if (!data) {
+      return res.status(404).json({
+        msg: "El producto no se encuentra registrado",
+      });
+    }
+    res.json({
+      msg: "Producto eliminado exitosamente",
+      data,
     });
-  }
-  const data = await dbDeleteProductById(id);
-  if (!data) {
-    return res.status(404).json({
-      msg: "El producto no se encuentra registrado"
-    })
-  }
-  res.json({
-    msg: "Producto eliminado exitosamente",
-    data
-  })
-} catch (error) {
-      console.error(error);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({
       msg: "Error al eliminar el producto",
     });
   }
-}
+};
 
-
-export { createProduct, getProduct, getProductById, updateProductById, deleteProductById };
+export {
+  createProduct,
+  getProduct,
+  getProductById,
+  updateProductById,
+  deleteProductById,
+};
