@@ -6,10 +6,20 @@ import authorizationUser from "../middleware/authorizationUser.middelware.js";
 
 const router = Router();
 
-router.post('/', [autenticationUser, authorizationUser(['administrador'])], createUser);
-router.get('/', [autenticationUser, authorizationUser(['administrador'])], getUser);
-router.get('/:id', [autenticationUser, authorizationUser(['administrador'])], getUserById);
-router.patch('/:id', [autenticationUser, authorizationUser(['administrador'])], verifyUserPermission, updateUserById);
-router.delete('/:id', [autenticationUser, authorizationUser(['administrador'])], isAdmin, deleteUserById);
+// Crear usuario (solo administrador)
+router.post('/', autenticationUser, authorizationUser(['administrador']), createUser);
+
+// Obtener todos los usuarios (solo administrador)
+router.get('/', autenticationUser, authorizationUser(['administrador']), getUser);
+
+// Obtener un usuario por ID (solo administrador)
+router.get('/:id', autenticationUser, authorizationUser(['administrador']), getUserById);
+
+// Actualizar un usuario
+router.patch('/:id', autenticationUser,  verifyUserPermission, updateUserById);
+
+
+// Eliminar un usuario (solo administrador)
+router.delete('/:id', autenticationUser, authorizationUser(['administrador']), deleteUserById);
 
 export default router;
