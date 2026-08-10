@@ -22,7 +22,7 @@ const createUser = async (req, res) => {
         });
     } catch (error) {
         res.json({
-            msg: "Ocurrio un error al obtener el usuario"
+            msg: "Ocurrio un error al obtener el usuario",
         })
 
     }
