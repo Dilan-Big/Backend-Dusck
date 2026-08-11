@@ -29,7 +29,7 @@ app.use('/api/auth',authRoutes);
 app.use('/api/users',userRoutes);
 app.use('/api/category', categoryRoutes);
 app.use('/api/product', productRoutes)
-app.use('/api/cart',cartRoutes)
+app.use('/api/cart',cartRoutes);
 app.use('/api/roles',roleRoutes);
 
 

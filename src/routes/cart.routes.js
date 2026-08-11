@@ -1,24 +1,19 @@
 import { Router } from "express";
-
 import {
-    createCart,
-    deleteCartById,
-    getCartById,
-    getCarts,
-    updateCartById
-
+    getCart
 } from "../controllers/cart.controller.js";
+import authorizationUser from "../middleware/authorizationUser.middelware.js";
+import autenticationUser from "../middleware/autentication.middleware.js";
 
 const router = Router();
 
-router.post("/", createCart);
+// Esta Ruta intenta obtener el carrito que no existe y lo crea
+router.get(
+    "/", 
+    [autenticationUser, authorizationUser(['administrador'])], 
+    getCart
+);
 
-router.get("/", getCarts);
 
-router.get("/:id", getCartById);
-
-router.patch("/:id", updateCartById);
-
-router.delete("/:id", deleteCartById);
 
 export default router;
