@@ -75,21 +75,36 @@ const dbUpdateCart = async (id, inputData) => {
     return await updateCart.populate(CART_POPULATE);
 }
 
-// ---------------------------------------------------------------------------
-// Variantes "por usuario": resuelven el carrito internamente a partir del
-// userId (siempre sacado del token en el controlador), nunca de un :id de
-// ruta. Reutilizan la logica ya probada de arriba sobre el _id resuelto.
-// ---------------------------------------------------------------------------
-
 const dbUpdateCartByUserId = async (userId, inputData) => {
     const cart = await dbGetOrCreateCartByUserId(userId);
     return await dbUpdateCart(cart._id, inputData);
 }
 
+// Elimina un producto del carrito por completo, sin importar la cantidad que tuviera.
+const dbRemoveCartItem = async (id, productId) => {
+    const updateCart = await CartModel.findOneAndUpdate(
+        { _id: id},
+        { $pull: {items: {productId } } },
+        { returnDocument: 'after' }
+    );
+    
+    if( !updateCart ) return null;
+    
+    return await updateCart.populate(CART_POPULATE);
+}
+
+const dbRemoveCartItemByUserId = async (userId, productId ) => {
+    const cart = await dbGetOrCreateCartByUserId(userId);
+    return await dbRemoveCartItem(cart._id, productId);
+}
+
+
 export {
     dbGetCart,
     dbGetOrCreateCartByUserId,
     dbUpdateCart,
-    dbUpdateCartByUserId
+    dbUpdateCartByUserId,
+    dbRemoveCartItem,
+    dbRemoveCartItemByUserId
     
 }

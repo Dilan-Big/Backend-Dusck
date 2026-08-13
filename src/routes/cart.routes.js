@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
     getMyCart,
+    removeMyCartItem,
     updateMyCart
 } from "../controllers/cart.controller.js";
 import authorizationUser from "../middleware/authorizationUser.middelware.js";
@@ -18,6 +19,12 @@ router.get(
 router.patch("/",
     [autenticationUser, authorizationUser(['subscriber'])], 
     updateMyCart
+)
+
+router.delete(
+    "/items/:productId",
+    [autenticationUser,authorizationUser(['subscriber'])],
+    removeMyCartItem
 )
 
 
