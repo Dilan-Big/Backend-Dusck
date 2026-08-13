@@ -1,4 +1,5 @@
 import { 
+    dbDeleteCartByUserId,
     dbGetOrCreateCartByUserId,
     dbRemoveCartItemByUserId,
     dbUpdateCartByUserId
@@ -101,8 +102,37 @@ const removeMyCartItem = async (req, res) => {
     }
 }
 
+//Elimina tu carrito por completo (ej. tras finalizar una compra).
+const deleteMyCart = async (req, res ) => {
+    try {
+        const userId = req.payload._id;
+        const data = await dbDeleteCartByUserId(userId);
+
+        if (!data) {
+            throw  new Error('No tienes un carrito registrado en el sistema ');
+        }
+
+        res.status(200).json({
+            msg: 'Tu carrito se elimino correctamente ',
+            data: data
+        });
+    } catch (error) {
+        console.error(error);
+
+        if(error.message.includes('No tienes un carrito registrado ') ) {
+            return res.status(400).json({
+                msg:error.message
+            });
+        }
+        
+        res.status(500).json({
+            msg: 'No se pudo eliminar su carrito '
+        })
+    }
+}
 export {
     getMyCart,
     updateMyCart,
-    removeMyCartItem
+    removeMyCartItem,
+    deleteMyCart
 }
