@@ -1,24 +1,43 @@
 import { 
-    dbGetCart
+    dbGetOrCreateCartByUserId
 } from "../services/cart.service.js";
 
-const getCart = async (req, res) => {
+const getMyCart = async (req, res) => {
   try {
     const userId = req.payload._id;
-    const cart = await dbGetCart(userId);
+    const data = await dbGetOrCreateCartByUserId(userId)
 
-    res.status(201).json({
+    res.status(200).json({
       msg: "carrito creado correctamnete",
-      cart,
+      cart: data
     });
   } catch (error) {
     res.status(500).json({
         msg: "Error al crerar el carrito",
-        error: error.msg
+        error: error.message
     });
   }
 };
 
+// const updateCart = async (req, res) =>{
+//     const { productId, quantity } = req.body;
+
+//     try {
+
+//         if( !productId || quantity === undefined ) {
+//             return res.status(400).json({
+//                 msg: 'Se necesita el productId y la cantidad para actualizar el carrito'
+//             });
+//         }
+
+//         const data = await dbupdate
+        
+//     } catch (error) {
+        
+//     }
+// }
+
 export {
-    getCart
+    getMyCart,
+    // updateCart
 }
