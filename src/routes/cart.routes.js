@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
-    getMyCart
+    getMyCart,
+    updateMyCart
 } from "../controllers/cart.controller.js";
 import authorizationUser from "../middleware/authorizationUser.middelware.js";
 import autenticationUser from "../middleware/autentication.middleware.js";
@@ -14,10 +15,10 @@ router.get(
     getMyCart
 );
 
-// router.patch("/",
-//     [autenticationUser, authorizationUser(['subscriber'])], 
-//     updateCart
-// )
+router.patch("/",
+    [autenticationUser, authorizationUser(['subscriber'])], 
+    updateMyCart
+)
 
 
 
