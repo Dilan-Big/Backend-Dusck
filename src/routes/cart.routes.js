@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+    deleteMyCart,
     getMyCart,
     removeMyCartItem,
     updateMyCart
@@ -25,6 +26,12 @@ router.delete(
     "/items/:productId",
     [autenticationUser,authorizationUser(['subscriber'])],
     removeMyCartItem
+)
+
+router.delete(
+    "/",
+    [autenticationUser, authorizationUser(['subscriber'])],
+    deleteMyCart
 )
 
 

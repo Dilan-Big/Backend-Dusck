@@ -3,11 +3,11 @@ import ProductModel from "../models/product.model.js";
 
 const CART_POPULATE = { path: 'items.productId', select: 'name price images category stock isActive'};
 
+//Solo admin	Todos los carritos de todos los usuarios
 const dbGetCart = async () => {
     return await CartModel.find().populate(CART_POPULATE);
 }
-
-
+// Busca el carrito del usuario por userId; si no existe, lo crea automáticamente
 const dbGetOrCreateCartByUserId = async (userId) => {
    return await CartModel.findOneAndUpdate(
     { userId },                                 // Objeto de consulta
@@ -17,6 +17,7 @@ const dbGetOrCreateCartByUserId = async (userId) => {
 
 }
 
+// Actualiza un producto (suma/resta cantidad) dentro de un carrito específico por su _id
 const dbUpdateCart = async (id, inputData) => {
     const { productId, quantity } = inputData;
 
@@ -74,11 +75,12 @@ const dbUpdateCart = async (id, inputData) => {
     // no solo el ObjectId crudo.
     return await updateCart.populate(CART_POPULATE);
 }
-
+// Resuelve el _id del carrito del usuario y delega la actualización a dbUpdateCart
 const dbUpdateCartByUserId = async (userId, inputData) => {
     const cart = await dbGetOrCreateCartByUserId(userId);
     return await dbUpdateCart(cart._id, inputData);
 }
+
 
 // Elimina un producto del carrito por completo, sin importar la cantidad que tuviera.
 const dbRemoveCartItem = async (id, productId) => {
@@ -92,12 +94,20 @@ const dbRemoveCartItem = async (id, productId) => {
     
     return await updateCart.populate(CART_POPULATE);
 }
-
+//Eliminar un prodcuto por ID
 const dbRemoveCartItemByUserId = async (userId, productId ) => {
     const cart = await dbGetOrCreateCartByUserId(userId);
     return await dbRemoveCartItem(cart._id, productId);
 }
 
+//Elimina un carrito por su _id
+const dbDeleteCart = async (id) => {
+    return await CartModel.findOneAndDelete({_id: id });
+}
+//Elimina el carrito propio del usuario logueado
+const dbDeleteCartByUserId = async (userId) => {
+    return await CartModel.findOneAndDelete({userId})
+}
 
 export {
     dbGetCart,
@@ -105,6 +115,7 @@ export {
     dbUpdateCart,
     dbUpdateCartByUserId,
     dbRemoveCartItem,
-    dbRemoveCartItemByUserId
-    
+    dbRemoveCartItemByUserId,
+    dbDeleteCart,
+    dbDeleteCartByUserId
 }
