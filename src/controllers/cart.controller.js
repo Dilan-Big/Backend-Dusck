@@ -1,5 +1,6 @@
 import { 
     dbGetOrCreateCartByUserId,
+    dbRemoveCartItemByUserId,
     dbUpdateCartByUserId
 } from "../services/cart.service.js";
 
@@ -72,8 +73,36 @@ const updateMyCart = async (req, res) => {
     }
 };
 
+// Elimina un producto de tu carrito por completo (sin importar la cantidad que tuviera).
+const removeMyCartItem = async (req, res) => {
+    try {
+        const userId = req.payload._id;
+        const { productId } = req.params;
+
+        const data = await dbRemoveCartItemByUserId(userId, productId);
+        
+        res.status(200).json({
+            msg: 'Se eliminó el producto de tu carrito exitosamente',
+            data: data
+        });
+
+    } catch (error) {
+        console.error(error);
+
+        if (error.name === 'castError') {
+            return res.status(400).json({
+                msg: 'El formato del ID del producto es inválido para la base de datos'
+            });
+        }
+
+        res.status(500).json({
+            msg: 'No se puede eliminar el carrito'
+        })
+    }
+}
 
 export {
     getMyCart,
-    updateMyCart
+    updateMyCart,
+    removeMyCartItem
 }
