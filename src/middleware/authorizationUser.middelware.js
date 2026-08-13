@@ -5,6 +5,7 @@ const authorizationUser = (allowedRoles = []) => {
       // Paso 1: Extrae el rol del req.body
       const { role } = req.payload;
 
+
       // Verifica hay un valor en role
       if ( !role ) {
         // Nosotros estamos definiendo manualmente una exception
@@ -18,7 +19,7 @@ const authorizationUser = (allowedRoles = []) => {
         });
       }
 
-      console.log(`El rol ${role} no esta autorizado para esta acción`);
+      console.log(`El rol ${role} no esta autorizado, acceso permitido`);
 
       // Paso 3: Da acceso a la ejecucion de la siguiente funcion definida en la ruta
       next();
