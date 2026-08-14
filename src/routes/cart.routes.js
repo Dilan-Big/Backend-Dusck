@@ -1,6 +1,9 @@
 import { Router } from "express";
 import {
+    deleteCart,
     deleteMyCart,
+    getCart,
+    getCartById,
     getMyCart,
     removeMyCartItem,
     updateMyCart
@@ -32,6 +35,26 @@ router.delete(
     "/",
     [autenticationUser, authorizationUser(['subscriber'])],
     deleteMyCart
+)
+
+// Herramientas administrativas: solo un ADMIN puede listar u operar sobre
+// el carrito de cualquier usuario a partir de su _id de Mongo.
+router.get(
+    "/admin",
+    [autenticationUser, authorizationUser(['administrador'])],
+    getCart
+)
+
+router.get(
+    "/admin/:id",
+    [autenticationUser, authorizationUser(['administrador'])],
+    getCartById
+)
+
+router.delete(
+    "/admin/:id",
+    [autenticationUser, authorizationUser(['administrador'])],
+    deleteCart
 )
 
 

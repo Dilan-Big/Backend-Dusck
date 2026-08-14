@@ -4,7 +4,8 @@ const authorizationUser = (allowedRoles = []) => {
     try {
       // Paso 1: Extrae el rol del req.body
       const { role } = req.payload;
-
+      console.log('ROL RECIBIDO:', JSON.stringify(role));
+console.log('ROLES PERMITIDOS:', JSON.stringify(allowedRoles));
 
       // Verifica hay un valor en role
       if ( !role ) {

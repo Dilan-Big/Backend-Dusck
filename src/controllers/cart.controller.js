@@ -1,8 +1,11 @@
 import { 
     dbDeleteCartByUserId,
+    dbGetCart,
     dbGetOrCreateCartByUserId,
     dbRemoveCartItemByUserId,
-    dbUpdateCartByUserId
+    dbUpdateCartByUserId,
+    dbGetCartById,
+    dbDeleteCart
 } from "../services/cart.service.js";
 
 // Devuelve el carrito del usuario autenticado, creandolo si aun no existe.
@@ -130,9 +133,117 @@ const deleteMyCart = async (req, res ) => {
         })
     }
 }
+
+//Lista todos los carritos del sistema (solo admin)
+const getCart = async (req, res ) => {
+    try {
+        const data = await dbGetCart();
+        if (data.length === 0) {
+            throw new Error('No se encontro el carrito registrado en el sistems');
+        }
+
+        res.status(200).json({
+            msg:'Se han listado los carritos exitosamente',
+            data: data
+        })
+    } catch (error) {
+        console.error(error);
+
+        if (error.message.includes('No se encontro carritos registrados en el sistema')) {
+            return res.status(404).json({
+                msg: error.message
+            }); 
+        }
+         res.status(500).json({
+            msg: 'No se pudo obtener el listado de carrito'
+         });
+    }
+}
+
+
+// Busca un carrito por _id (params); si no existe, error 404 (uso admin)
+const getCartById = async (req, res) => {
+    try {
+        const id = req.params.id;
+
+        const data = await dbGetCartById(id);
+
+        if (!data) {
+            throw new Error('El carrito solicitado no existe en el sistema');
+        }
+
+        res.status(200).json({
+            msg: 'Se encontró el carrito exitosamente',
+            data: data
+        });
+
+    } catch (error) {
+        console.error(error);
+
+        if (error.message.includes('El carrito solicitado no existe')) {
+            return res.status(404).json({
+                msg: error.message
+            });
+        }
+
+        if (error.name === 'CastError') {
+            return res.status(400).json({
+                msg: 'El formato del ID de carrito provisto es inválido para la base de datos'
+            });
+        }
+
+        res.status(500).json({
+            msg: 'No se pudo obtener el carrito'
+        });
+    }
+};
+
+//
+const deleteCart = async (req, res) => {
+    try {
+        const id = req.params.id;
+
+        const existingCart = await dbGetCartById(id);
+
+        if (!existingCart) {
+            throw new Error('El carrito que deseas eliminar no existe en el sistema');
+        }
+
+        const data = await dbDeleteCart(id);
+
+        res.status(200).json({
+            msg: 'El carrito se eliminó exitosamente',
+            data: data
+        });
+
+    } catch (error) {
+        console.error(error);
+
+        if (error.message.includes('El carrito que deseas eliminar no existe')) {
+            return res.status(404).json({
+                msg: error.message
+            });
+        }
+
+        if (error.name === 'CastError') {
+            return res.status(400).json({
+                msg: 'El formato del ID de carrito provisto es inválido para la base de datos'
+            });
+        }
+
+        res.status(500).json({
+            msg: 'No se pudo eliminar el carrito'
+        });
+    }
+};
+
+
 export {
     getMyCart,
     updateMyCart,
     removeMyCartItem,
-    deleteMyCart
+    deleteMyCart,
+    getCart,
+    getCartById,
+    deleteCart
 }
