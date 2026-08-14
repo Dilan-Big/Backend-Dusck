@@ -109,6 +109,12 @@ const dbDeleteCartByUserId = async (userId) => {
     return await CartModel.findOneAndDelete({userId})
 }
 
+
+// Busca un carrito por su _id de Mongo (uso admin)
+const dbGetCartById = async (id) => {
+    return await CartModel.findOne({ _id: id }).populate(CART_POPULATE);
+}
+
 export {
     dbGetCart,
     dbGetOrCreateCartByUserId,
@@ -117,5 +123,6 @@ export {
     dbRemoveCartItem,
     dbRemoveCartItemByUserId,
     dbDeleteCart,
-    dbDeleteCartByUserId
+    dbDeleteCartByUserId,
+    dbGetCartById
 }
