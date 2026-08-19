@@ -31,9 +31,18 @@ const ProductSchema = new Schema({
         required: [true, 'El stock es obligatorio'],
         min: [0, 'El stock no puede ser negativo']
     },
+    // Estructura para el arreglo de imágenes con validadores y mensajes de error personalizados
     images: {
-        type: String,  // Array de URLs de imágenes
-        default: ''
+        type: [{
+            url: {
+                type: String,
+                required: [true, 'La URL de la imagen es obligatoria']
+            },
+            isMain: {
+                type: Boolean,
+                default: false
+            }
+        }],
     },
     category: {
         type: Schema.Types.ObjectId,
