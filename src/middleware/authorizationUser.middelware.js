@@ -20,7 +20,7 @@ console.log('ROLES PERMITIDOS:', JSON.stringify(allowedRoles));
         });
       }
 
-      console.log(`El rol ${role} no esta autorizado, acceso permitido`);
+      console.log(`El rol ${role}  esta autorizado, acceso permitido`);
 
       // Paso 3: Da acceso a la ejecucion de la siguiente funcion definida en la ruta
       next();

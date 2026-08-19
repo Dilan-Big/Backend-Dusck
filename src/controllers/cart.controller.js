@@ -198,7 +198,7 @@ const getCartById = async (req, res) => {
     }
 };
 
-//
+// Elimina un carrito por _id, validando antes que exista (uso admin)
 const deleteCart = async (req, res) => {
     try {
         const id = req.params.id;
