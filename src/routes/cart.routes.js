@@ -16,24 +16,24 @@ const router = Router();
 // Esta Ruta intenta obtener el carrito que no existe y lo crea
 router.get(
     "/", 
-    [autenticationUser, authorizationUser(['subscriber'])], 
+    [autenticationUser, authorizationUser(['administrador', 'shop_manager', 'editor', 'subscriber'])], 
     getMyCart
 );
 
 router.patch("/",
-    [autenticationUser, authorizationUser(['subscriber'])], 
+    [autenticationUser, authorizationUser(['administrador', 'shop_manager', 'editor', 'subscriber'])], 
     updateMyCart
 )
 
 router.delete(
     "/items/:productId",
-    [autenticationUser,authorizationUser(['subscriber'])],
+    [autenticationUser,authorizationUser(['administrador', 'shop_manager', 'editor', 'subscriber'])],
     removeMyCartItem
 )
 
 router.delete(
     "/",
-    [autenticationUser, authorizationUser(['subscriber'])],
+    [autenticationUser, authorizationUser(['administrador', 'shop_manager', 'editor', 'subscriber'])],
     deleteMyCart
 )
 
