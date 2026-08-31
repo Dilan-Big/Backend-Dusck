@@ -7,7 +7,9 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "dev": "node --watch ./src/index.js"
+    "dev": "node --watch ./src/index.js",
+    "test": "node --test",
+    "test:security": "node --test \"tests/*.test.js\""
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

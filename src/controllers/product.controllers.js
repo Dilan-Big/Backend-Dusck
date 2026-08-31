@@ -6,6 +6,8 @@ import {
   dbUpdateProductById,
 } from "../services/product.services.js";
 import mongoose from "mongoose";
+import { PRODUCT_UPDATABLE_FIELDS } from "../config/global.config.js";
+import { pickAllowed } from "../helpers/validation.helpers.js";
 
 const createProduct = async (req, res) => {
   try {
@@ -67,12 +69,23 @@ const getProductById = async (req, res) => {
 const updateProductById = async (req, res) => {
   try {
     const id = req.params.id;
-    const inputData = req.body;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         msg: "El ID del producto no es válido",
       });
     }
+
+    // FASE 2 / S4: lista blanca por construccion. Se descartan campos no
+    // editables (createdBy, timestamps, ...) y cualquier operador de
+    // actualizacion ($set, $inc, $unset, $rename, ...).
+    const inputData = pickAllowed(req.body, PRODUCT_UPDATABLE_FIELDS);
+
+    if (Object.keys(inputData).length === 0) {
+      return res.status(400).json({
+        msg: "No se enviaron campos válidos para actualizar",
+      });
+    }
+
     const data = await dbUpdateProductById(id, inputData);
     if (!data) {
       return res.status(404).json({

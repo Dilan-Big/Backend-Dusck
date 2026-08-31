@@ -1,4 +1,4 @@
-import { 
+import {
     dbDeleteCartByUserId,
     dbGetCart,
     dbGetOrCreateCartByUserId,
@@ -7,6 +7,12 @@ import {
     dbGetCartById,
     dbDeleteCart
 } from "../services/cart.service.js";
+import { isValidObjectId, isFiniteInteger } from "../helpers/validation.helpers.js";
+
+// FASE 2 / S4: tope de unidades por peticion. `quantity` es un delta con signo
+// (el frontend envia -1 para restar, +1 para sumar). Acotamos el rango para
+// evitar abuso sin romper el contrato existente del carrito.
+const MAX_CART_DELTA = 100;
 
 // Devuelve el carrito del usuario autenticado, creandolo si aun no existe.
 const getMyCart = async (req, res) => {
@@ -31,10 +37,22 @@ const updateMyCart = async (req, res) => {
     try {
         const userId = req.payload._id;
         const { productId, quantity } = req.body;
-        
-        if (!productId || quantity === undefined ) {
+
+        // FASE 2 / S4: se valida el TIPO real antes de tocar la base de datos.
+        // productId debe ser un ObjectId (string) valido; un objeto como
+        // { "$ne": null } se rechaza aqui y nunca llega a findById/findOne.
+        if (!isValidObjectId(productId)) {
             return res.status(400).json({
-                msg: 'Se necesita el productId y la cantidad para actualizar el carrito'
+                msg: 'El productId no es válido'
+            });
+        }
+
+        // quantity es un delta ENTERO finito con signo, acotado en rango.
+        // No se hace Number(quantity): primero se comprueba el tipo.
+        if (!isFiniteInteger(quantity) || quantity === 0 ||
+            Math.abs(quantity) > MAX_CART_DELTA) {
+            return res.status(400).json({
+                msg: 'La cantidad debe ser un número entero distinto de cero'
             });
         }
 
@@ -82,6 +100,13 @@ const removeMyCartItem = async (req, res) => {
     try {
         const userId = req.payload._id;
         const { productId } = req.params;
+
+        // FASE 2 / S4 y REGLA 8: ObjectId valido antes de consultar.
+        if (!isValidObjectId(productId)) {
+            return res.status(400).json({
+                msg: 'El productId no es válido'
+            });
+        }
 
         const data = await dbRemoveCartItemByUserId(userId, productId);
         
@@ -166,6 +191,13 @@ const getCartById = async (req, res) => {
     try {
         const id = req.params.id;
 
+        // FASE 2 / S4 y REGLA 8: ObjectId valido -> 400 controlado, no 500.
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({
+                msg: 'El ID del carrito no es válido'
+            });
+        }
+
         const data = await dbGetCartById(id);
 
         if (!data) {
@@ -202,6 +234,13 @@ const getCartById = async (req, res) => {
 const deleteCart = async (req, res) => {
     try {
         const id = req.params.id;
+
+        // FASE 2 / S4 y REGLA 8: ObjectId valido -> 400 controlado, no 500.
+        if (!isValidObjectId(id)) {
+            return res.status(400).json({
+                msg: 'El ID del carrito no es válido'
+            });
+        }
 
         const existingCart = await dbGetCartById(id);
 

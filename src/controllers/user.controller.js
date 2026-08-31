@@ -1,6 +1,7 @@
 
 import { encryptedPassword } from "../helpers/bycryp.helper.js";
 import { ALLOWED_ROLES, PROFILE_UPDATABLE_FIELDS, ROLES } from "../config/global.config.js";
+import { isPlainString, isValidObjectId } from "../helpers/validation.helpers.js";
 import {
   dbCreateUser,
   dbDeleteUserById,
@@ -22,6 +23,19 @@ const pickAllowedFields = (body = {}, allowed = []) => {
   return result;
 };
 
+// FASE 2 / S4: comprueba que todos los campos indicados, si estan presentes,
+// son strings primitivos. Evita que un objeto ({ "$ne": null }) llegue como
+// valor de un campo de texto o a encryptedPassword(). Devuelve el nombre del
+// primer campo con tipo invalido, o null si todos son validos.
+const firstNonStringField = (source, fields) => {
+  for (const field of fields) {
+    if (source[field] !== undefined && !isPlainString(source[field])) {
+      return field;
+    }
+  }
+  return null;
+};
+
 const createUser = async (req, res) => {
   try {
     // Lista blanca tambien al crear, para evitar asignacion masiva de campos.
@@ -34,6 +48,23 @@ const createUser = async (req, res) => {
       "role",
       "status",
     ]);
+
+    // FASE 2 / S4: validacion de tipos en el borde. Los campos de texto deben
+    // ser strings; `status`, si viene, booleano.
+    const badField = firstNonStringField(inputData, [
+      "name",
+      "nickname",
+      "email",
+      "password",
+      "avatar",
+      "role",
+    ]);
+    if (badField) {
+      return res.status(400).json({ msg: `El campo '${badField}' no es válido` });
+    }
+    if (inputData.status !== undefined && typeof inputData.status !== "boolean") {
+      return res.status(400).json({ msg: "El campo 'status' debe ser booleano" });
+    }
 
     if (inputData.role && !ALLOWED_ROLES.includes(inputData.role)) {
       return res.status(400).json({ msg: `Rol no válido: ${inputData.role}` });
@@ -72,6 +103,9 @@ const getUser = async (req, res) => {
 const getUserById = async (req, res) => {
   try {
     const id = req.params.id;
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ msg: "El ID del usuario no es válido" });
+    }
     const data = await dbGetUserById(id);
     res.json({
       msg: "Se obtiene un usuario por id",
@@ -90,7 +124,18 @@ const getUserById = async (req, res) => {
 const updateUserById = async (req, res) => {
   try {
     const id = req.params.id;
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ msg: "El ID del usuario no es válido" });
+    }
+
     const inputData = pickAllowedFields(req.body, PROFILE_UPDATABLE_FIELDS);
+
+    // FASE 2 / S4: todos los campos de perfil son de texto. Un objeto como
+    // { "$ne": null } como valor se rechaza aqui (ademas del guard global).
+    const badField = firstNonStringField(inputData, PROFILE_UPDATABLE_FIELDS);
+    if (badField) {
+      return res.status(400).json({ msg: `El campo '${badField}' no es válido` });
+    }
 
     if (inputData.password) {
       inputData.password = encryptedPassword(inputData.password);
@@ -114,6 +159,10 @@ const updateUserRole = async (req, res) => {
   try {
     const id = req.params.id;
     const { role } = req.body;
+
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ msg: "El ID del usuario no es válido" });
+    }
 
     if (!role || !ALLOWED_ROLES.includes(role)) {
       return res.status(400).json({
@@ -144,6 +193,10 @@ const updateUserStatus = async (req, res) => {
     const id = req.params.id;
     const { status } = req.body;
 
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ msg: "El ID del usuario no es válido" });
+    }
+
     if (typeof status !== "boolean") {
       return res.status(400).json({ msg: "El campo 'status' debe ser booleano" });
     }
@@ -166,6 +219,9 @@ const updateUserStatus = async (req, res) => {
 const deleteUserById = async (req, res) => {
   try {
     const id = req.params.id;
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ msg: "El ID del usuario no es válido" });
+    }
     const data = await dbDeleteUserById(id);
     res.json({
       msg: "Se elimina usuario por ID",

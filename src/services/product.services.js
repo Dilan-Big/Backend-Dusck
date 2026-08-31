@@ -15,11 +15,14 @@ const dbGetProductById = async (id) => {
     });
 };
 
+// `productUpdate` YA viene filtrado por lista blanca desde el controller.
+// Se envuelve SIEMPRE en $set (ninguna clave se interpreta como operador) y se
+// activan los validadores del schema (min de price/stock, match de slug, etc.).
 const dbUpdateProductById = async (id, productUpdate) => {
     return await ProductModel.findOneAndUpdate(
-        { _id: id },       // Objeto de consulta
-        productUpdate,     // Datos a actualizar
-        { new: true }      // Devuelve el documento actualizado
+        { _id: id },                       // Objeto de consulta
+        { $set: productUpdate },           // Datos a actualizar (solo $set)
+        { new: true, runValidators: true } // Documento actualizado + validacion
     );
 };
 

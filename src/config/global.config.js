@@ -25,3 +25,11 @@ export const ROLES_LABELS = {
 // Campos de perfil que un usuario puede modificar sobre su propia cuenta
 // mediante PATCH /api/users/:id. Cualquier otro campo del body se ignora.
 export const PROFILE_UPDATABLE_FIELDS = ['name', 'nickname', 'email', 'password', 'avatar'];
+
+// FASE 2 / S4 — Listas blancas de actualizacion.
+// Solo estos campos pueden llegar (dentro de $set) a findOneAndUpdate en los
+// PATCH de categoria y producto. Se derivan del modelo + de lo que el frontend
+// realmente edita (category-edit-form / product-edit-form). Se excluyen a
+// proposito los campos de propiedad/auditoria (createdBy, timestamps).
+export const CATEGORY_UPDATABLE_FIELDS = ['name', 'slug', 'description', 'isActive'];
+export const PRODUCT_UPDATABLE_FIELDS = ['name', 'slug', 'description', 'price', 'stock', 'images', 'category', 'isActive'];
