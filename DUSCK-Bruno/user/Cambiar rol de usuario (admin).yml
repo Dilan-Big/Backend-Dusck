@@ -1,0 +1,21 @@
+info:
+  name: Cambiar rol de usuario (admin)
+  type: http
+  seq: 6
+
+http:
+  method: PATCH
+  url: http://localhost:3000/api/users/6a3c585474f7c571b9f6c16c/role
+  body:
+    type: json
+    data: |-
+      {
+        "role": "shop_manager"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

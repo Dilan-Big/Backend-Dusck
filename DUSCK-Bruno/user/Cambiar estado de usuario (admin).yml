@@ -1,0 +1,21 @@
+info:
+  name: Cambiar estado de usuario (admin)
+  type: http
+  seq: 7
+
+http:
+  method: PATCH
+  url: http://localhost:3000/api/users/6a3c585474f7c571b9f6c16c/status
+  body:
+    type: json
+    data: |-
+      {
+        "status": false
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
