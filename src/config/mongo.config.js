@@ -1,17 +1,34 @@
 import mongoose from 'mongoose';
 
-const LOCAL_STRING_CONNECTION = 'mongodb://localhost:27017/db-dusck';
-const REMOTE_STRING_CONNECTION = 'REDACTED_HISTORICAL_CREDENTIAL'
+import { env } from './env.config.js';
+
+// Oculta credenciales (usuario:contraseña) al mostrar el host de destino en logs.
+function safeMongoTarget(uri) {
+  try {
+    const { protocol, host, pathname } = new URL(uri);
+    return `${protocol}//${host}${pathname}`;
+  } catch {
+    return 'destino desconocido';
+  }
+}
+
+// Elimina cualquier "usuario:pass@" y URIs completas que un mensaje de error
+// pudiera llegar a incluir, para no filtrar credenciales en consola.
+function redact(text) {
+  return String(text)
+    .replace(/mongodb(\+srv)?:\/\/[^\s]*/gi, '[REDACTED_URI]')
+    .replace(/\/\/[^/@\s]+@/g, '//[REDACTED]@');
+}
 
 async function dbConection() {
   try {
-    await mongoose.connect(REMOTE_STRING_CONNECTION);
-    console.log('Connected to MongoDB Atlas');
+    await mongoose.connect(env.mongoUri);
+    console.log(`Connected to MongoDB (${safeMongoTarget(env.mongoUri)})`);
   } catch (error) {
-    console.error(error);
-    console.error(`Connect Failed! :'(`);
+    // No imprimimos `error` crudo para evitar filtrar la URI con credenciales.
+    console.error(`Connect Failed! :'( -> ${error.name}: ${redact(error.message)}`);
+    process.exit(1);
   }
-
 }
 
 export default dbConection;

@@ -1,19 +1,22 @@
 import jwt from "jsonwebtoken";
 
+import { env } from "../config/env.config.js";
+
 const generateToken = (payload) => {
-    return jwt.sign(payload, 'REDACTED_HISTORICAL_JWT_SECRET',{expiresIn:'1h'});
+    return jwt.sign(payload, env.jwtSecret, { expiresIn: '1h' });
 }
 
 
-const validateToken = (token) => { 
+const validateToken = (token) => {
     try {
-      return jwt.verify(token, 'REDACTED_HISTORICAL_JWT_SECRET');
-        
+      return jwt.verify(token, env.jwtSecret);
+
     } catch (error) {
-        console.error(error)
+        // Solo el tipo/mensaje del error, nunca el secreto ni el token.
+        console.error(`JWT invalido -> ${error.name}: ${error.message}`);
         return null
     }
-    
+
 }
 
 export {generateToken, validateToken};

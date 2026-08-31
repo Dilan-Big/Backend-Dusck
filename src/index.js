@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 
+import { env } from './config/env.config.js';
 import dbConection from './config/mongo.config.js';
 
 import authRoutes from './routes/authentication.routes.js';
@@ -33,6 +34,6 @@ app.use('/api/cart',cartRoutes);
 app.use('/api/roles',roleRoutes);
 
 
-app.listen(3000, ()=>{
-    console.log ("Servidor lansado en http://localhost:3000")
+app.listen(env.port, ()=>{
+    console.log (`Servidor lansado en http://localhost:${env.port}`)
 });
