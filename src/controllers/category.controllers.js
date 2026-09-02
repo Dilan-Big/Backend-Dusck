@@ -7,6 +7,7 @@ import {
  } from "../services/category.service.js";
 import { CATEGORY_UPDATABLE_FIELDS } from "../config/global.config.js";
 import { isValidObjectId, pickAllowed } from "../helpers/validation.helpers.js";
+import { sendWriteError } from "../helpers/writeError.helper.js";
 
 
 const createCategory = async (req, res) => {
@@ -18,9 +19,7 @@ const createCategory = async (req, res) => {
             data
         })
     } catch (error) {
-        res.json({
-            msg: "Ocurrio un Error al registrar una  categoria"
-        });
+        return sendWriteError(res, error, "categoria");
     }
 }
 
@@ -32,8 +31,8 @@ const getCategory = async (req, res) => {
             data,
         });
     } catch (error) {
-        console.error(error);
-        res.json({
+        console.error(`Error al listar categorias -> ${error && error.name}`);
+        res.status(500).json({
             msg: "Ocurrio un error al obtner la categoria"
         });
     }
@@ -51,8 +50,8 @@ const getCategoryById = async (req, res) => {
             data
         });
     } catch (error) {
-        console.error(error);
-        res.json({
+        console.error(`Error al obtener categoria por ID -> ${error && error.name}`);
+        res.status(500).json({
             msg: "Ocurrio un error al obtener la categoria por ID"
         });
     }
@@ -95,10 +94,7 @@ const updateCategoryById = async (req, res) => {
             data
         });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            msg: "Ocurrio un error al actualizar categoria por ID"
-        });
+        return sendWriteError(res, error, "categoria");
     }
 }
 

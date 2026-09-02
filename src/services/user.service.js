@@ -16,6 +16,11 @@ const dbGetUsers = async () => {
     return await UserModel.find().select("-password");
 }
 
+// Cuenta documentos que cumplen `filter` (p. ej. administradores activos).
+const dbCountUsers = async (filter = {}) => {
+    return await UserModel.countDocuments(filter);
+}
+
 const dbGetUserById = async (id) => {
     return await UserModel.findOne({
         _id: id
@@ -46,6 +51,7 @@ const dbDeleteUserById = async (id) => {
 export {
     dbCreateUser,
     dbGetUsers,
+    dbCountUsers,
     dbGetUserById,
     dbUpdateUserById,
     dbDeleteUserById,

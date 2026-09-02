@@ -2,8 +2,12 @@
 const authorizationUser = (allowedRoles = []) => {
   return (req, res, next) => {
     try {
-      // Paso 1: Extrae el rol del req.body
-      const { role } = req.payload;
+      // Paso 1: Rol ACTUAL del usuario.
+      // `req.user` lo carga autentication.middleware.js desde MongoDB en CADA
+      // request, asi que refleja cambios de rol inmediatamente. Se prefiere
+      // sobre `req.payload.role` (rol congelado en el JWT, hasta 1h de
+      // antiguedad). Fallback al payload por compatibilidad.
+      const role = req.user?.role ?? req.payload?.role;
       console.log('ROL RECIBIDO:', JSON.stringify(role));
 console.log('ROLES PERMITIDOS:', JSON.stringify(allowedRoles));
 

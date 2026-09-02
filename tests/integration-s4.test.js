@@ -36,6 +36,10 @@ test.before(async () => {
     const CategoryModel = (await import("../src/models/category.model.js")).default;
     const ProductModel = (await import("../src/models/product.model.js")).default;
 
+    // Asegura que los indices unicos (email, nickname, slug) esten construidos
+    // ANTES de los tests de duplicados (si no, un insert duplicado "pasaria").
+    await Promise.all([UserModel.init(), CategoryModel.init(), ProductModel.init()]);
+
     const admin = await UserModel.create({
       name: "Admin S4",
       nickname: "admin-s4",
@@ -88,6 +92,7 @@ test.before(async () => {
     ctx = {
       mongoose,
       models: { UserModel, CategoryModel, ProductModel },
+      helpers: { encryptedPassword, generateToken },
       server,
       base: `http://127.0.0.1:${port}`,
       token,
@@ -448,4 +453,236 @@ test("regresion: listado de productos y categorias sigue respondiendo", async (t
   assert.equal(p.status, 200);
   const c = await api("/api/category");
   assert.equal(c.status, 200);
+});
+
+// ---------------------------------------------------------------------------
+// R1.4 — DELETE USER: proteccion en el BACKEND (anti-lockout)
+// ---------------------------------------------------------------------------
+
+const makeUser = async (over = {}) => {
+  const { UserModel } = ctx.models;
+  const { encryptedPassword } = ctx.helpers;
+  const n = Math.random().toString(36).slice(2, 8);
+  return UserModel.create({
+    name: `Tmp ${n}`,
+    nickname: `tmp-${n}`,
+    email: `tmp-${n}@dusck.com`,
+    password: encryptedPassword("Secret123"),
+    role: "subscriber",
+    status: true,
+    ...over,
+  });
+};
+
+const tokenFor = (user) =>
+  ctx.helpers.generateToken({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    nickname: user.nickname,
+    role: user.role,
+  });
+
+test("R1.4 admin elimina OTRO usuario -> 200 y desaparece", async (t) => {
+  if (guard(t)) return;
+  const { UserModel } = ctx.models;
+  const victim = await makeUser();
+
+  const res = await api(`/api/users/${victim._id}`, {
+    method: "DELETE",
+    token: ctx.token,
+  });
+  assert.equal(res.status, 200);
+  assert.equal(await UserModel.findById(victim._id), null);
+});
+
+test("R1.4 admin intenta eliminarSE a si mismo -> 409 y sigue existiendo", async (t) => {
+  if (guard(t)) return;
+  const { UserModel } = ctx.models;
+
+  const res = await api(`/api/users/${ctx.ids.admin}`, {
+    method: "DELETE",
+    token: ctx.token,
+  });
+  assert.equal(res.status, 409);
+  assert.ok(await UserModel.findById(ctx.ids.admin));
+});
+
+test("R1.4 el sistema no puede quedarse sin administradores activos", async (t) => {
+  if (guard(t)) return;
+  const { UserModel } = ctx.models;
+
+  // Dos admins activos extra. Un admin puede borrar a OTRO admin...
+  const a2 = await makeUser({ role: "administrador", status: true });
+  const a3 = await makeUser({ role: "administrador", status: true });
+  const a2Token = tokenFor(a2);
+
+  const delOther = await api(`/api/users/${a3._id}`, { method: "DELETE", token: a2Token });
+  assert.equal(delOther.status, 200);
+
+  // ...pero NINGUN admin puede borrarse a si mismo (garantiza que nunca se llega
+  // a 0: solo los admins pueden borrar admins y ninguno puede quitarse a si
+  // mismo). El guard `activeAdmins <= 1` del controlador es la red adicional.
+  const delSelf = await api(`/api/users/${a2._id}`, { method: "DELETE", token: a2Token });
+  assert.equal(delSelf.status, 409);
+  assert.ok(await UserModel.findById(a2._id));
+
+  await UserModel.findByIdAndDelete(a2._id);
+});
+
+test("R1.4 la regla del ultimo admin usa 'activos': cuenta administradores status:true", async (t) => {
+  if (guard(t)) return;
+  const { dbCountUsers } = await import("../src/services/user.service.js");
+  const { ROLES } = await import("../src/config/global.config.js");
+
+  const before = await dbCountUsers({ role: ROLES.ADMIN, status: true });
+  const inactive = await makeUser({ role: "administrador", status: false });
+  const after = await dbCountUsers({ role: ROLES.ADMIN, status: true });
+  assert.equal(after, before, "un admin inactivo no incrementa el conteo de activos");
+
+  await ctx.models.UserModel.findByIdAndDelete(inactive._id);
+});
+
+// ---------------------------------------------------------------------------
+// R1.5 — ROLE AUTHORIZATION usa el rol ACTUAL de MongoDB, no el del JWT
+// ---------------------------------------------------------------------------
+
+test("R1.5 rol cambiado en BD: autoriza con el rol nuevo aunque el JWT sea viejo", async (t) => {
+  if (guard(t)) return;
+  const { UserModel } = ctx.models;
+
+  const u = await makeUser({ role: "editor" });
+  const oldToken = tokenFor(u); // JWT dice role: editor
+
+  // editor NO puede listar roles (authorizationUser(['administrador']))
+  const before = await api("/api/roles", { token: oldToken });
+  assert.equal(before.status, 403);
+
+  // Un admin lo promueve en BD.
+  await UserModel.findByIdAndUpdate(u._id, { role: "administrador" });
+
+  // MISMO token viejo (sigue diciendo editor) -> ahora SI, porque el middleware
+  // lee req.user.role desde Mongo.
+  const after = await api("/api/roles", { token: oldToken });
+  assert.equal(after.status, 200);
+
+  await UserModel.findByIdAndDelete(u._id);
+});
+
+test("R1.5 rol degradado en BD: pierde acceso aunque el JWT diga admin", async (t) => {
+  if (guard(t)) return;
+  const { UserModel } = ctx.models;
+
+  const u = await makeUser({ role: "administrador" });
+  const adminToken = tokenFor(u); // JWT dice administrador
+
+  const before = await api("/api/roles", { token: adminToken });
+  assert.equal(before.status, 200);
+
+  await UserModel.findByIdAndUpdate(u._id, { role: "subscriber" });
+
+  const after = await api("/api/roles", { token: adminToken });
+  assert.equal(after.status, 403);
+
+  await UserModel.findByIdAndDelete(u._id);
+});
+
+// ---------------------------------------------------------------------------
+// R1.7 — SEMANTICA HTTP EN ERRORES DE ESCRITURA (nunca 200 cuando falla)
+// ---------------------------------------------------------------------------
+
+test("R1.7 POST /users email duplicado -> 409 (no 200)", async (t) => {
+  if (guard(t)) return;
+  const res = await api("/api/users", {
+    method: "POST",
+    token: ctx.token,
+    body: {
+      name: "Dup Mail",
+      nickname: "dup-mail", // <= 20, no existe
+      email: "admin-s4@dusck.com", // ya existe
+      password: "Secret123",
+      role: "subscriber",
+    },
+  });
+  assert.equal(res.status, 409);
+  const json = await res.json();
+  assert.equal(json.data, undefined);
+  assert.match(json.msg, /correo/i);
+});
+
+test("R1.7 POST /users nickname duplicado -> 409", async (t) => {
+  if (guard(t)) return;
+  const res = await api("/api/users", {
+    method: "POST",
+    token: ctx.token,
+    body: {
+      name: "Dup Nick",
+      nickname: "admin-s4", // ya existe
+      email: "dup-nick@dusck.com",
+      password: "Secret123",
+      role: "subscriber",
+    },
+  });
+  assert.equal(res.status, 409);
+});
+
+test("R1.7 POST /users sin password -> 400", async (t) => {
+  if (guard(t)) return;
+  const res = await api("/api/users", {
+    method: "POST",
+    token: ctx.token,
+    body: {
+      name: "No Pass",
+      nickname: "no-pass",
+      email: "no-pass@dusck.com",
+      role: "subscriber",
+    },
+  });
+  assert.equal(res.status, 400);
+});
+
+test("R1.7 POST /category slug duplicado -> 409; slug invalido -> 400", async (t) => {
+  if (guard(t)) return;
+  const dup = await api("/api/category", {
+    method: "POST",
+    token: ctx.token,
+    body: { name: "Cat Dup S4", slug: "ropa-s4" }, // slug ya existe
+  });
+  assert.equal(dup.status, 409);
+
+  const bad = await api("/api/category", {
+    method: "POST",
+    token: ctx.token,
+    body: { name: "Cat Bad S4", slug: "Slug Invalido!!" },
+  });
+  assert.equal(bad.status, 400);
+});
+
+test("R1.7 POST /product validacion (price<0) -> 400; slug duplicado -> 409", async (t) => {
+  if (guard(t)) return;
+  const neg = await api("/api/product", {
+    method: "POST",
+    token: ctx.token,
+    body: {
+      name: "Prod Neg S4",
+      slug: "prod-neg-s4",
+      price: -1,
+      stock: 1,
+      category: ctx.ids.category,
+    },
+  });
+  assert.equal(neg.status, 400);
+
+  const dup = await api("/api/product", {
+    method: "POST",
+    token: ctx.token,
+    body: {
+      name: "Prod Dup S4",
+      slug: "camiseta-s4", // ya existe
+      price: 1,
+      stock: 1,
+      category: ctx.ids.category,
+    },
+  });
+  assert.equal(dup.status, 409);
 });

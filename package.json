@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "node --watch ./src/index.js",
     "test": "node --test",
-    "test:security": "node --test \"tests/*.test.js\""
+    "test:security": "node --test \"tests/*.test.js\"",
+    "seed": "node scripts/seed.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

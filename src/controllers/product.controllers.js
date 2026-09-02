@@ -8,6 +8,7 @@ import {
 import mongoose from "mongoose";
 import { PRODUCT_UPDATABLE_FIELDS } from "../config/global.config.js";
 import { pickAllowed } from "../helpers/validation.helpers.js";
+import { sendWriteError } from "../helpers/writeError.helper.js";
 
 const createProduct = async (req, res) => {
   try {
@@ -18,10 +19,7 @@ const createProduct = async (req, res) => {
       data,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      msg: "Error al crear el producto",
-    });
+    return sendWriteError(res, error, "producto");
   }
 };
 
@@ -97,10 +95,7 @@ const updateProductById = async (req, res) => {
       data,
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      msg: "Error al actualizar el producto",
-    });
+    return sendWriteError(res, error, "producto");
   }
 };
 

@@ -2,7 +2,9 @@
 import { encryptedPassword } from "../helpers/bycryp.helper.js";
 import { ALLOWED_ROLES, PROFILE_UPDATABLE_FIELDS, ROLES } from "../config/global.config.js";
 import { isPlainString, isValidObjectId } from "../helpers/validation.helpers.js";
+import { sendWriteError } from "../helpers/writeError.helper.js";
 import {
+  dbCountUsers,
   dbCreateUser,
   dbDeleteUserById,
   dbGetUserById,
@@ -70,6 +72,12 @@ const createUser = async (req, res) => {
       return res.status(400).json({ msg: `Rol no válido: ${inputData.role}` });
     }
 
+    // La contrasena es obligatoria al CREAR (el schema la permite vacia para
+    // otros flujos). Se valida aqui para no llegar a encryptedPassword(undefined).
+    if (!isPlainString(inputData.password) || inputData.password.length === 0) {
+      return res.status(400).json({ msg: "La contraseña es obligatoria" });
+    }
+
     inputData.password = encryptedPassword(inputData.password);
 
     const data = await dbCreateUser(inputData);
@@ -79,9 +87,7 @@ const createUser = async (req, res) => {
       data,
     });
   } catch (error) {
-    res.json({
-      msg: "Ocurrio un error al obtener el usuario",
-    });
+    return sendWriteError(res, error, "usuario");
   }
 };
 
@@ -93,8 +99,8 @@ const getUser = async (req, res) => {
       data,
     });
   } catch (error) {
-    console.error(error);
-    res.json({
+    console.error(`Error al listar usuarios -> ${error && error.name}`);
+    res.status(500).json({
       msg: "Ocurrio un error a obtener la lista de usuarios",
     });
   }
@@ -112,8 +118,8 @@ const getUserById = async (req, res) => {
       data,
     });
   } catch (error) {
-    console.error(error);
-    res.json({
+    console.error(`Error al obtener usuario por ID -> ${error && error.name}`);
+    res.status(500).json({
       msg: "Ocurrio un error a obtener el usuario por ID",
     });
   }
@@ -142,15 +148,13 @@ const updateUserById = async (req, res) => {
     }
 
     const data = await dbUpdateUserById(id, inputData);
+    if (!data) return res.status(404).json({ msg: "Usuario no encontrado" });
     res.json({
       msg: "Se actualiza usuario po ID",
       data,
     });
   } catch (error) {
-    console.error(error);
-    res.json({
-      msg: "Ocurio un error al actualizar usuario por ID",
-    });
+    return sendWriteError(res, error, "usuario");
   }
 };
 
@@ -222,14 +226,45 @@ const deleteUserById = async (req, res) => {
     if (!isValidObjectId(id)) {
       return res.status(400).json({ msg: "El ID del usuario no es válido" });
     }
+
+    // Anti-lockout (autoridad en el backend, NO en la UI):
+    // 1) un usuario no puede eliminar su propia cuenta.
+    if (id === req.user._id.toString()) {
+      return res.status(409).json({ msg: "No puedes eliminar tu propia cuenta" });
+    }
+
+    const target = await dbGetUserById(id);
+    if (!target) {
+      return res.status(404).json({ msg: "Usuario no encontrado" });
+    }
+
+    // 2) no se puede eliminar al ultimo administrador ACTIVO del sistema
+    //    (dejaria el panel sin nadie que pueda gestionarlo).
+    if (target.role === ROLES.ADMIN && target.status === true) {
+      const activeAdmins = await dbCountUsers({ role: ROLES.ADMIN, status: true });
+      if (activeAdmins <= 1) {
+        return res
+          .status(409)
+          .json({ msg: "No puedes eliminar al último administrador activo" });
+      }
+    }
+
+    // Cuentas criticas: si en el futuro hay cuentas de servicio/sistema que
+    // nunca deben borrarse, la estrategia recomendada es una marca en el
+    // modelo (p. ej. `protected: true`) y comprobarla aqui. Hoy no existe esa
+    // marca, asi que no se aplica ninguna lista fija de correos.
+
     const data = await dbDeleteUserById(id);
+    if (!data) {
+      return res.status(404).json({ msg: "Usuario no encontrado" });
+    }
     res.json({
       msg: "Se elimina usuario por ID",
       data,
     });
   } catch (error) {
-    console.error(error);
-    res.json({
+    console.error(`Error al eliminar usuario -> ${error && error.name}`);
+    res.status(500).json({
       msg: "Ocurrio un error al eliminiar usuario",
     });
   }
