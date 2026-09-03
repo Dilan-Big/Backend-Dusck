@@ -72,7 +72,7 @@ test.before(async () => {
       description: "producto de prueba",
       price: 100,
       stock: 10,
-      category: category._id,
+      categories: [category._id],
       createdBy: originalOwner,
       images: [{ url: "http://dusck.test/a.png", isMain: true }],
     });
@@ -370,27 +370,46 @@ test("F3 cart PATCH quantity fuera de rango -> 400", async (t) => {
 
 test("F3 cart PATCH legitimo (add 2, luego -1) -> 200 y estado coherente", async (t) => {
   if (guard(t)) return;
+  const { ProductModel } = ctx.models;
+
+  // PD-005 — el carrito solo acepta productos PUBLISHED + isActive. El fixture
+  // compartido (`camiseta-s4`) nace DRAFT, así que este test usa su propio
+  // producto publicado, sin depender del estado del fixture.
+  const pub = await ProductModel.create({
+    name: "Cart Pub S4",
+    slug: `cart-pub-s4-${Date.now()}`,
+    description: "publicado para el test de carrito",
+    price: 100,
+    stock: 10,
+    categories: [ctx.ids.category],
+    createdBy: ctx.ids.admin,
+    images: [{ url: "http://dusck.test/cart.png", isMain: true }],
+    status: "PUBLISHED",
+    isActive: true,
+  });
+  const pubId = pub._id.toString();
+
   const add = await api("/api/cart", {
     method: "PATCH",
     token: ctx.token,
-    body: { productId: ctx.ids.product, quantity: 2 },
+    body: { productId: pubId, quantity: 2 },
   });
   assert.equal(add.status, 200);
   const addJson = await add.json();
   const item = addJson.data.items.find(
-    (i) => (i.productId._id || i.productId).toString() === ctx.ids.product
+    (i) => (i.productId._id || i.productId).toString() === pubId
   );
   assert.equal(item.quantity, 2);
 
   const dec = await api("/api/cart", {
     method: "PATCH",
     token: ctx.token,
-    body: { productId: ctx.ids.product, quantity: -1 },
+    body: { productId: pubId, quantity: -1 },
   });
   assert.equal(dec.status, 200);
   const decJson = await dec.json();
   const item2 = decJson.data.items.find(
-    (i) => (i.productId._id || i.productId).toString() === ctx.ids.product
+    (i) => (i.productId._id || i.productId).toString() === pubId
   );
   assert.equal(item2.quantity, 1);
 });
@@ -668,7 +687,7 @@ test("R1.7 POST /product validacion (price<0) -> 400; slug duplicado -> 409", as
       slug: "prod-neg-s4",
       price: -1,
       stock: 1,
-      category: ctx.ids.category,
+      categories: [ctx.ids.category],
     },
   });
   assert.equal(neg.status, 400);
@@ -681,7 +700,7 @@ test("R1.7 POST /product validacion (price<0) -> 400; slug duplicado -> 409", as
       slug: "camiseta-s4", // ya existe
       price: 1,
       stock: 1,
-      category: ctx.ids.category,
+      categories: [ctx.ids.category],
     },
   });
   assert.equal(dup.status, 409);

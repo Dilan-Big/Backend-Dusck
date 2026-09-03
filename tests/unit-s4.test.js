@@ -18,10 +18,8 @@ import {
   findMongoOperatorKey,
   pickAllowed,
 } from "../src/helpers/validation.helpers.js";
-import {
-  CATEGORY_UPDATABLE_FIELDS,
-  PRODUCT_UPDATABLE_FIELDS,
-} from "../src/config/global.config.js";
+import { CATEGORY_UPDATABLE_FIELDS } from "../src/config/global.config.js";
+import { PRODUCT_ALL_UPDATABLE_FIELDS } from "../src/helpers/productWorkflow.helper.js";
 import { loginUser } from "../src/controllers/auth.controllers.js";
 import { updateMyCart } from "../src/controllers/cart.controller.js";
 import { updateCategoryById } from "../src/controllers/category.controllers.js";
@@ -170,7 +168,7 @@ test("findMongoOperatorKey devuelve la clave ofensiva o null", () => {
 test("pickAllowed descarta campos no permitidos (mass assignment)", () => {
   const out = pickAllowed(
     { name: "X", price: 10, createdBy: "hack", isActive: false, __proto__: {} },
-    PRODUCT_UPDATABLE_FIELDS
+    PRODUCT_ALL_UPDATABLE_FIELDS
   );
   assert.deepEqual(Object.keys(out).sort(), ["isActive", "name", "price"]);
   assert.equal("createdBy" in out, false);

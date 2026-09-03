@@ -10,7 +10,8 @@
     "dev": "node --watch ./src/index.js",
     "test": "node --test",
     "test:security": "node --test \"tests/*.test.js\"",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "migrate:product-domain": "node scripts/migrate-product-domain.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

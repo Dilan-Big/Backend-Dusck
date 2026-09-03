@@ -12,9 +12,33 @@ const DUP_FIELD_LABELS = {
   nickname: "nickname",
   slug: "slug",
   name: "nombre",
+  "variants.sku": "SKU",
+};
+
+// FASE 3 — Product Domain + Editor Workflow.
+// Errores de dominio lanzados explícitamente por los services (no vienen de
+// Mongoose) — ver `product.services.js` (assertCategoriesExist,
+// assertNoDuplicateSkus) y `product.controllers.js` (transiciones de estado).
+// `error.code` aquí es un string propio, nunca choca con el 11000 numérico de
+// Mongo, así que esta comprobación va SIEMPRE antes de la de duplicado.
+const CUSTOM_ERROR_STATUS = {
+  DUPLICATE_SKU_LOCAL: 409,
+  DUPLICATE_SKU_GLOBAL: 409,
+  INVALID_CATEGORY_REF: 400,
+  // FASE 3 / Remediación 2
+  INVALID_VARIANTS: 400, // PD2-004 — `variants` presente pero no es un array
+  STOCK_REQUIRED: 400, // PD2-005 — quitar todas las variantes sin declarar `stock`
+  // FASE 3 / Remediación 3
+  INVALID_CATEGORIES: 400, // PD3-001 — `categories` presente pero no es un array
 };
 
 const sendWriteError = (res, error, entityLabel = "registro") => {
+  if (error && CUSTOM_ERROR_STATUS[error.code]) {
+    return res.status(CUSTOM_ERROR_STATUS[error.code]).json({
+      msg: error.message,
+    });
+  }
+
   // Duplicado: E11000. `keyPattern` / `keyValue` traen el/los campo(s) en conflicto.
   if (error && error.code === 11000) {
     const field = Object.keys(error.keyPattern || error.keyValue || {})[0];

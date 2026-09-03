@@ -1,9 +1,12 @@
 /**
- * Seed de DESARROLLO LOCAL para el runtime audit del Admin Panel.
+ * Seed de DESARROLLO LOCAL para el runtime audit del Admin Panel + Product
+ * Domain / Editor Workflow.
  *
- * Crea las 4 cuentas de rol reales + un catálogo mínimo (categorías y productos
- * que cubren todos los niveles de stock). NO es dato de producción: son fixtures
- * para poder probar login, guards y CRUD contra Mongo local.
+ * Crea las 4 cuentas de rol reales + un catálogo que cubre el nuevo dominio:
+ * multiples categorias por producto, variantes con SKU, y los 4 estados del
+ * workflow editorial (DRAFT, PENDING_REVIEW, REJECTED, PUBLISHED). NO es dato
+ * de produccion: son fixtures para poder probar login, guards, CRUD y el
+ * ciclo de revision completo contra Mongo local.
  *
  * Contraseñas: NUNCA en el código. Se leen de variables de entorno (.env local,
  * cubierto por .gitignore):
@@ -86,22 +89,97 @@ const USERS = [
   { name: 'Cliente Prueba',  nickname: 'cliente1',      email: 'cliente@dusck.test', role: 'subscriber',    status: true, passwordVar: 'SEED_SUBSCRIBER_PASSWORD' },
 ];
 
+// Categorías planas (HOMBRE/MUJER son categorías, NUNCA un campo `gender`).
+// Un producto pertenece a varias a la vez (p. ej. HOMBRE + CAMISETAS).
 const CATEGORIES = [
-  { name: 'Camisetas',  slug: 'camisetas',  description: 'Basicos de algodon peinado.', isActive: true },
+  { name: 'Hombre',     slug: 'hombre',     description: 'Catálogo para hombre.',        isActive: true },
+  { name: 'Mujer',      slug: 'mujer',      description: 'Catálogo para mujer.',         isActive: true },
+  { name: 'Camisetas',  slug: 'camisetas',  description: 'Básicos de algodón peinado.',  isActive: true },
   { name: 'Pantalones', slug: 'pantalones', description: 'Cortes rectos y sastre.',      isActive: true },
-  { name: 'Accesorios', slug: 'accesorios', description: 'Complementos de temporada.',   isActive: false },
+  { name: 'Accesorios', slug: 'accesorios', description: 'Complementos de temporada.',   isActive: true },
 ];
 
-// stock elegido para cubrir los niveles del panel: >5 ok / 1-5 bajo / <=0 agotado
+// Cubre, entre los 5 productos: HOMBRE+CAMISETAS, MUJER+CAMISETAS,
+// HOMBRE+PANTALONES (x2), producto CON variantes (SKU/color/talla) y SIN
+// variantes, y los 4 estados del workflow editorial.
 const PRODUCTS = [
-  { name: 'Camiseta Esencial Negra',   slug: 'camiseta-esencial-negra',  categorySlug: 'camisetas',  price: 89000,  stock: 25, isActive: true,
-    description: 'Camiseta de peso medio, cuello redondo.', images: [{ url: 'https://picsum.photos/seed/dusck-tee/600/800', isMain: true }] },
-  { name: 'Camiseta Oversize Marfil',  slug: 'camiseta-oversize-marfil', categorySlug: 'camisetas',  price: 99000,  stock: 3,  isActive: true,
-    description: 'Corte holgado, hombros caidos.', images: [{ url: 'https://picsum.photos/seed/dusck-tee2/600/800', isMain: true }] },
-  { name: 'Pantalon Sastre Gris',      slug: 'pantalon-sastre-gris',     categorySlug: 'pantalones', price: 219000, stock: 0,  isActive: true,
-    description: 'Pinzas frontales, caida fluida.', images: [] },
-  { name: 'Pantalon Cargo (borrador)', slug: 'pantalon-cargo-borrador',  categorySlug: 'pantalones', price: 189000, stock: 12, isActive: false,
-    description: 'Aun no publicado.', images: [{ url: 'https://picsum.photos/seed/dusck-cargo/600/800', isMain: true }] },
+  {
+    slug: 'camiseta-esencial-negra',
+    name: 'Camiseta Esencial Negra',
+    description: 'Camiseta de peso medio, cuello redondo, en algodón peinado.',
+    price: 89000,
+    categorySlugs: ['hombre', 'camisetas'],
+    images: [{ url: 'https://picsum.photos/seed/dusck-tee/600/800', isMain: true }],
+    // Con variantes: `stock` se recalcula automáticamente (suma) al guardar.
+    variants: [
+      { sku: 'DUS-CAM-ESS-NEG-S', color: 'Negro', size: 'S', stock: 10 },
+      { sku: 'DUS-CAM-ESS-NEG-M', color: 'Negro', size: 'M', stock: 8 },
+      { sku: 'DUS-CAM-ESS-NEG-L', color: 'Negro', size: 'L', stock: 0 },
+    ],
+    createdByRole: 'editor',
+    status: 'PUBLISHED',
+    isActive: true,
+    workflow: { submittedByRole: 'editor', approvedByRole: 'administrador', publishedByRole: 'administrador' },
+  },
+  {
+    slug: 'camiseta-oversize-marfil',
+    name: 'Camiseta Oversize Marfil',
+    description: 'Corte holgado, hombros caídos, algodón orgánico.',
+    price: 99000,
+    categorySlugs: ['mujer', 'camisetas'],
+    images: [{ url: 'https://picsum.photos/seed/dusck-tee2/600/800', isMain: true }],
+    stock: 3, // sin variantes: stock plano es la fuente de verdad
+    createdByRole: 'editor',
+    status: 'PENDING_REVIEW',
+    isActive: false,
+    workflow: { submittedByRole: 'editor' },
+  },
+  {
+    slug: 'pantalon-sastre-gris',
+    name: 'Pantalón Sastre Gris',
+    // Descripción vacía A PROPÓSITO: demuestra que un DRAFT admite
+    // información incompleta (Regla §27/§28 — draft ≠ submit-review).
+    description: '',
+    price: 219000,
+    categorySlugs: ['hombre', 'pantalones'],
+    images: [],
+    stock: 0,
+    createdByRole: 'editor',
+    status: 'DRAFT',
+    isActive: false,
+    workflow: {},
+  },
+  {
+    slug: 'pantalon-cargo-rechazado',
+    name: 'Pantalón Cargo (rechazado)',
+    description: 'Cargo con bolsillos laterales, tela ripstop.',
+    price: 189000,
+    categorySlugs: ['hombre', 'pantalones'],
+    images: [{ url: 'https://picsum.photos/seed/dusck-cargo/600/800', isMain: true }],
+    stock: 12,
+    createdByRole: 'editor',
+    status: 'REJECTED',
+    isActive: false,
+    workflow: {
+      submittedByRole: 'editor',
+      rejectedByRole: 'administrador',
+      rejectionReason:
+        'Faltan fotos de detalle y el precio no coincide con la ficha de costos. Corrige y vuelve a enviar.',
+    },
+  },
+  {
+    slug: 'cinturon-cuero-clasico',
+    name: 'Cinturón de Cuero Clásico',
+    description: 'Cinturón de cuero genuino, hebilla metálica. Talla única.',
+    price: 129000,
+    categorySlugs: ['accesorios'],
+    images: [{ url: 'https://picsum.photos/seed/dusck-belt/600/800', isMain: true }],
+    stock: 15, // accesorio sin talla/variantes
+    createdByRole: 'administrador',
+    status: 'PUBLISHED',
+    isActive: true,
+    workflow: { approvedByRole: 'administrador', publishedByRole: 'administrador' },
+  },
 ];
 
 // --- Upserts idempotentes -------------------------------------------------
@@ -138,12 +216,46 @@ async function upsertCategory(c) {
   return { doc, created: !before };
 }
 
-async function upsertProduct(p, categoryId, createdBy) {
-  const { categorySlug, ...rest } = p;
+async function upsertProduct(p, catBySlug, usersByRole) {
+  const { categorySlugs, workflow = {}, createdByRole, ...rest } = p;
+  const now = new Date();
+
+  const payload = {
+    // `variants` explicito SIEMPRE (default `[]` si el fixture no lo define):
+    // este upsert hace $set parcial contra documentos que pueden ser fixtures
+    // LEGACY de una fase anterior (sin este campo todavia). El default del
+    // schema solo se aplica en un INSERT nuevo, no al fusionar campos en un
+    // documento que ya existia — sin esto, un producto legacy re-sembrado
+    // quedaria sin `variants`, rompiendo cualquier lectura que asuma el array.
+    variants: [],
+    ...rest,
+    categories: categorySlugs.map((slug) => catBySlug[slug]._id),
+    createdBy: usersByRole[createdByRole]._id,
+    updatedBy: usersByRole[createdByRole]._id,
+  };
+
+  if (workflow.submittedByRole) {
+    payload.submittedBy = usersByRole[workflow.submittedByRole]._id;
+    payload.submittedAt = now;
+  }
+  if (workflow.approvedByRole) {
+    payload.approvedBy = usersByRole[workflow.approvedByRole]._id;
+    payload.approvedAt = now;
+  }
+  if (workflow.rejectedByRole) {
+    payload.rejectedBy = usersByRole[workflow.rejectedByRole]._id;
+    payload.rejectedAt = now;
+    payload.rejectionReason = workflow.rejectionReason;
+  }
+  if (workflow.publishedByRole) {
+    payload.publishedBy = usersByRole[workflow.publishedByRole]._id;
+    payload.publishedAt = now;
+  }
+
   const before = await ProductModel.exists({ slug: p.slug });
   const doc = await ProductModel.findOneAndUpdate(
     { slug: p.slug },
-    { $set: { ...rest, category: categoryId, createdBy } },
+    { $set: payload },
     { returnDocument: 'after', upsert: true, runValidators: true, setDefaultsOnInsert: true },
   );
   return { doc, created: !before };
@@ -183,7 +295,6 @@ async function main() {
     usersCreated += created ? 1 : 0;
     console.log(`[seed] user  ${created ? 'creado ' : 'ok     '} ${u.role.padEnd(13)} ${u.email}`);
   }
-  const adminId = usersByRole['administrador']._id;
 
   let catsCreated = 0;
   const catBySlug = {};
@@ -196,11 +307,10 @@ async function main() {
 
   let prodsCreated = 0;
   for (const p of PRODUCTS) {
-    const cat = catBySlug[p.categorySlug];
-    const { doc, created } = await upsertProduct(p, cat._id, adminId);
+    const { doc, created } = await upsertProduct(p, catBySlug, usersByRole);
     prodsCreated += created ? 1 : 0;
     console.log(
-      `[seed] prod  ${created ? 'creado ' : 'ok     '} ${doc.slug.padEnd(28)} stock:${String(doc.stock).padStart(3)} isActive:${doc.isActive}`,
+      `[seed] prod  ${created ? 'creado ' : 'ok     '} ${doc.slug.padEnd(28)} status:${doc.status.padEnd(15)} stock:${String(doc.stock).padStart(3)} isActive:${doc.isActive}`,
     );
   }
 

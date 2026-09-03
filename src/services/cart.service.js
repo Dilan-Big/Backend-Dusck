@@ -1,11 +1,27 @@
 import CartModel from "../models/cart.model.js";
 import ProductModel from "../models/product.model.js";
+import { PRODUCT_STATUS } from "../helpers/productWorkflow.helper.js";
 
-const CART_POPULATE = { path: 'items.productId', select: 'name price images category stock isActive'};
+// PD-005 / PD-011 — `category` (singular) ya no existe en el modelo.
+//
+// PD2-003 — Dos proyecciones separadas:
+//   CLIENT: lo que el drawer del subscriber necesita para pintar el item. NUNCA
+//           incluye `status` (workflow interno) ni ninguna metadata editorial.
+//   ADMIN : añade `status` para las vistas administrativas del carrito
+//           (`GET /api/cart/admin`, `GET /api/cart/admin/:id`), que solo alcanza
+//           un `administrador`.
+const CART_POPULATE_CLIENT = { path: 'items.productId', select: 'name price images stock isActive' };
+const CART_POPULATE_ADMIN = { path: 'items.productId', select: 'name price images stock isActive status' };
+
+// PD-005 — Un producto solo es "comprable" (se puede AGREGAR o INCREMENTAR en
+// el carrito) si está realmente publicado y activo. DRAFT / PENDING_REVIEW /
+// APPROVED / REJECTED nunca; PUBLISHED+inactivo tampoco.
+const isPurchasable = (product) =>
+  !!product && product.status === PRODUCT_STATUS.PUBLISHED && product.isActive === true;
 
 //Solo admin	Todos los carritos de todos los usuarios
 const dbGetCart = async () => {
-    return await CartModel.find().populate(CART_POPULATE);
+    return await CartModel.find().populate(CART_POPULATE_ADMIN);
 }
 // Busca el carrito del usuario por userId; si no existe, lo crea automáticamente
 const dbGetOrCreateCartByUserId = async (userId) => {
@@ -13,7 +29,7 @@ const dbGetOrCreateCartByUserId = async (userId) => {
     { userId },                                 // Objeto de consulta
     { $setOnInsert: { userId, items: [] } },    // Datos a actualizar
     { returnDocument: 'after', upsert: true, runValidators: true }
-   ).populate(CART_POPULATE);
+   ).populate(CART_POPULATE_CLIENT);
 
 }
 
@@ -26,6 +42,16 @@ const dbUpdateCart = async (id, inputData) => {
 
      if (!product) {
         throw new Error('El producto que intentaste agregar no existe en el sistema ')
+     }
+
+     // PD-005 — Solo se puede AGREGAR / INCREMENTAR (`quantity > 0`) un producto
+     // publicado y activo. `quantity < 0` (disminuir) y la eliminación de items
+     // NO se tocan: `quantity` sigue siendo un delta con signo, y un producto
+     // que dejó de estar publicado debe poder quitarse del carrito igualmente.
+     if (quantity > 0 && !isPurchasable(product)) {
+        const err = new Error('El producto no está disponible');
+        err.code = 'PRODUCT_NOT_PURCHASABLE';
+        throw err;
      }
 
      if (quantity > 0) {
@@ -73,7 +99,7 @@ const dbUpdateCart = async (id, inputData) => {
 
      // 4. Repoblamos antes de devolver: el front siempre necesita nombre/precio/imagen,
     // no solo el ObjectId crudo.
-    return await updateCart.populate(CART_POPULATE);
+    return await updateCart.populate(CART_POPULATE_CLIENT);
 }
 // Resuelve el _id del carrito del usuario y delega la actualización a dbUpdateCart
 const dbUpdateCartByUserId = async (userId, inputData) => {
@@ -91,8 +117,8 @@ const dbRemoveCartItem = async (id, productId) => {
     );
     
     if( !updateCart ) return null;
-    
-    return await updateCart.populate(CART_POPULATE);
+
+    return await updateCart.populate(CART_POPULATE_CLIENT);
 }
 //Eliminar un prodcuto por ID
 const dbRemoveCartItemByUserId = async (userId, productId ) => {
@@ -112,7 +138,7 @@ const dbDeleteCartByUserId = async (userId) => {
 
 // Busca un carrito por su _id de Mongo (uso admin)
 const dbGetCartById = async (id) => {
-    return await CartModel.findOne({ _id: id }).populate(CART_POPULATE);
+    return await CartModel.findOne({ _id: id }).populate(CART_POPULATE_ADMIN);
 }
 
 export {

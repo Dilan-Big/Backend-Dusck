@@ -5,6 +5,7 @@ import {
     dbUpdateCategoryById,
     dbDeleteCategoryById
  } from "../services/category.service.js";
+import { dbProductsUseCategory } from "../services/product.services.js";
 import { CATEGORY_UPDATABLE_FIELDS } from "../config/global.config.js";
 import { isValidObjectId, pickAllowed } from "../helpers/validation.helpers.js";
 import { sendWriteError } from "../helpers/writeError.helper.js";
@@ -104,6 +105,18 @@ const deleteCategoryById = async (req, res) => {
         if (!isValidObjectId(id)) {
             return res.status(400).json({ msg: "El ID de la categoría no es válido" });
         }
+
+        // FASE 3 — Product Domain: no se elimina una categoria que este en uso
+        // (Regla §14: "no eliminar categorias que esten siendo utilizadas sin
+        // definir comportamiento seguro"). El mecanismo seguro para retirarla
+        // es desactivarla (`isActive:false`), no borrarla.
+        const inUse = await dbProductsUseCategory(id);
+        if (inUse) {
+            return res.status(409).json({
+                msg: "No se puede eliminar: hay productos que usan esta categoría. Desactívala en su lugar (isActive:false)."
+            });
+        }
+
         const data = await dbDeleteCategoryById(id);
         res.json({
             msg: "Se elimina categoria por ID",

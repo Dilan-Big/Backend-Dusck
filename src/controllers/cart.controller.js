@@ -64,7 +64,20 @@ const updateMyCart = async (req, res) => {
     } catch (error) {
         console.error(error);
 
-        if(error.message.includes('no existe en el sistema') || error.message.includes('unidades disponobles')) {
+        // PD-005 — Producto no publicado/activo: se responde 404 ("no disponible"),
+        // el mismo contrato que el storefront (`GET /product/:id` de un no
+        // publicado también da 404) — no se confirma que el producto exista.
+        if (error.code === 'PRODUCT_NOT_PURCHASABLE') {
+            return res.status(404).json({
+                msg: error.message
+            });
+        }
+
+        // Nota: se corrige aquí una errata preexistente ('disponobles') que hacía
+        // caer el rechazo por falta de stock al 500 genérico en vez de un 400.
+        // Es la misma rama que toca PD-005 y es necesaria para que "incrementar
+        // por encima del stock" siga devolviendo un 4xx limpio (§8).
+        if (error.message.includes('no existe en el sistema') || error.message.includes('unidades disponibles')) {
             return res.status(400).json({
                 msg: error.message
             });
