@@ -1,5 +1,5 @@
 import { createOrder } from "../services/order.service.js";
-import { listFinalizedOrders } from "../services/order.read.service.js";
+import { listFinalizedOrders, getFinalizedOrderById } from "../services/order.read.service.js";
 import { dbDeleteCartByUserId } from "../services/cart.service.js";
 import { isPlainString, isValidObjectId, pickAllowed } from "../helpers/validation.helpers.js";
 import { ORDER_STATUSES, ORDER_NUMBER_REGEX } from "../helpers/orderWorkflow.helper.js";
@@ -372,4 +372,111 @@ const listOrdersController = async (req, res) => {
   }
 };
 
-export { createOrderController, toPublicOrder, listOrdersController, toAdminOrderListItem };
+// ====================================================================
+// FASE 4.3-C.3.2 — GET /api/orders/:id (detalle administrativo, SOLO LECTURA)
+// ====================================================================
+//
+// Adapter HTTP: valida `:id` con el helper existente, delega la lectura en
+// `order.read.service.js::getFinalizedOrderById` (que impone `finalized:true`) y
+// proyecta la respuesta con una función literal. NO consulta Mongo aquí, NO
+// consulta Product, NO acepta query params, NO muta nada.
+
+// Serializa un ObjectId (o string) a String; `null`/`undefined` -> `null`.
+const idToString = (v) => (v === null || v === undefined ? null : String(v));
+
+// Proyección PÚBLICA del DETALLE administrativo (contrato F4.3-C.3.2). Objeto
+// NUEVO por construcción — nunca `{ ...order }`, nunca el documento Mongo crudo.
+// Los campos internos (`idempotencyKey`, `finalized`, `source`, `requestedItems`,
+// `stockAdjustments`, `stockOpsPruned`, `export`, `__v`) no se leen ni se emiten.
+// Los opcionales aparecen SIEMPRE con `null` explícito (DEC-C3.2-G).
+const toAdminOrderDetail = (order) => {
+  const o = order || {};
+  const customer = o.customer || {};
+  const address = o.shippingAddress || {};
+  const totals = o.totals || {};
+  const payment = o.payment || {};
+
+  return {
+    id: idToString(o._id),
+    orderNumber: o.orderNumber ?? null,
+    userId: idToString(o.userId),
+    status: o.status ?? null,
+    createdAt: o.createdAt ?? null,
+    updatedAt: o.updatedAt ?? null,
+    customer: {
+      recipientName: customer.recipientName ?? null,
+      phone: customer.phone ?? null,
+      email: customer.email ?? null,
+      documentId: customer.documentId ?? null,
+    },
+    shippingAddress: {
+      department: address.department ?? null,
+      city: address.city ?? null,
+      neighborhood: address.neighborhood ?? null,
+      address: address.address ?? null,
+      addressComplement: address.addressComplement ?? null,
+      reference: address.reference ?? null,
+    },
+    items: (Array.isArray(o.items) ? o.items : []).map((it) => ({
+      productId: idToString(it.productId),
+      productName: it.productName ?? null,
+      slug: it.slug ?? null,
+      image: it.image ?? null,
+      unitPrice: it.unitPrice ?? null,
+      quantity: it.quantity ?? null,
+      subtotal: it.subtotal ?? null,
+    })),
+    totals: {
+      itemsSubtotal: totals.itemsSubtotal ?? 0,
+      shipping: totals.shipping ?? 0,
+      grandTotal: totals.grandTotal ?? 0,
+      currency: totals.currency ?? "COP",
+    },
+    payment: {
+      method: payment.method ?? null,
+      status: payment.status ?? null,
+    },
+    // Orden cronológico tal cual está almacenado (append-only): NO se reordena.
+    statusHistory: (Array.isArray(o.statusHistory) ? o.statusHistory : []).map((h) => ({
+      status: h.status ?? null,
+      changedAt: h.changedAt ?? null,
+      changedBy: idToString(h.changedBy), // string | null — sin populate (DEC-C3.2-C)
+      note: h.note ?? null,
+    })),
+    notes: o.notes ?? null,
+  };
+};
+
+const getOrderByIdController = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ msg: "El identificador del pedido no es válido" });
+    }
+
+    // El servicio impone `finalized: true`. Un skeleton (`finalized:false`) o un
+    // id inexistente devuelven `null` -> mismo 404, sin revelar el skeleton.
+    const order = await getFinalizedOrderById(id);
+    if (!order) {
+      return res.status(404).json({ msg: "El pedido no se encuentra registrado" });
+    }
+
+    return res.status(200).json({
+      msg: "Pedido obtenido correctamente",
+      data: toAdminOrderDetail(order),
+    });
+  } catch (error) {
+    console.error(`[order.controller] getOrderById -> ${error && error.name}`);
+    return res.status(500).json({ msg: "No se pudo obtener el pedido" });
+  }
+};
+
+export {
+  createOrderController,
+  toPublicOrder,
+  listOrdersController,
+  toAdminOrderListItem,
+  getOrderByIdController,
+  toAdminOrderDetail,
+};

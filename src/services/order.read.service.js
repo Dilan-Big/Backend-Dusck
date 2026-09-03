@@ -1,14 +1,17 @@
 import OrderModel from "../models/order.model.js";
 
-// FASE 4.3-C.3.1 — Order Read Service.
+// FASE 4.3-C.3.1 / C.3.2 — Order Read Service.
 //
 // Capa de LECTURA del dominio Order, separada de `order.service.js` (que es
-// command-only: `createOrder` + recuperación). Esta función NO conoce Express
-// (`req`/`res`), NO autentica, NO autoriza y NO muta documentos. Recibe
-// argumentos YA validados/normalizados por el controller y ejecuta la consulta.
+// command-only: `createOrder` + recuperación). Estas funciones NO conocen
+// Express (`req`/`res`), NO autentican, NO autorizan y NO mutan documentos
+// (nada de `save`/`updateOne`/`findOneAndUpdate`/`deleteOne`). Reciben
+// argumentos YA validados/normalizados por el controller.
 //
-// Alcance: SOLO el listado administrativo `GET /api/orders`. NO implementa
-// `GET /api/orders/:id`, workflow, export ni el reaper.
+// Alcance: consultas administrativas de solo lectura —
+//   `GET /api/orders`      (listado, C.3.1)  -> listFinalizedOrders
+//   `GET /api/orders/:id`  (detalle, C.3.2)  -> getFinalizedOrderById
+// NO implementa workflow, export ni el reaper.
 
 // Proyección administrativa del LISTADO (server-side). Se traen solo los campos
 // que `toAdminOrderListItem` necesita; `items` se limita a `quantity` (basta
@@ -55,4 +58,44 @@ const listFinalizedOrders = async ({ filter, sort, skip, limit }) => {
   return { total, docs };
 };
 
-export { listFinalizedOrders };
+// FASE 4.3-C.3.2 — Detalle administrativo `GET /api/orders/:id`.
+//
+// Whitelist POSITIVA: solo los campos aprobados para el detalle. Un campo nuevo
+// añadido al schema en el futuro NO se filtra por defecto. NUNCA se seleccionan
+// `idempotencyKey`, `finalized`, `source`, `requestedItems`, `stockAdjustments`,
+// `stockOpsPruned`, `export` ni `__v` (este último ya ausente: `versionKey:false`).
+// `stockOps` vive en `Product`, no en `Order`.
+const DETAIL_PROJECTION = [
+  "orderNumber",
+  "userId",
+  "status",
+  "createdAt",
+  "updatedAt",
+  "customer",
+  "shippingAddress",
+  "items",
+  "totals",
+  "payment",
+  "statusHistory",
+  "notes",
+].join(" ");
+
+/**
+ * Detalle de UNA orden FINALIZADA por su `_id`.
+ *
+ * `finalized: true` es impuesto AQUÍ (no se confía solo en el controller). Un
+ * `_id` que no exista o que apunte a un skeleton (`finalized:false`) devuelve
+ * `null` — el controller lo traduce al mismo 404, sin revelar el skeleton
+ * (DEC-C3.2-B).
+ *
+ * @param {string} id  ObjectId de 24 hex YA validado por el controller
+ *                     (`isValidObjectId`). Se usa como valor literal, nunca como
+ *                     filtro construido con `req.params`.
+ * @returns {Promise<object|null>}  objeto plano (`lean`) con `DETAIL_PROJECTION`,
+ *          o `null` si no hay orden finalizada con ese id.
+ */
+const getFinalizedOrderById = async (id) => {
+  return OrderModel.findOne({ _id: id, finalized: true }).select(DETAIL_PROJECTION).lean();
+};
+
+export { listFinalizedOrders, getFinalizedOrderById };
