@@ -540,6 +540,14 @@ OrderSchema.index(
   { partialFilterExpression: { finalized: true, stockOpsPruned: false } },
 );
 
+//   { customer.email, createdAt }  F4.3-C.3.1 — GET /api/orders: filtro
+//                                  administrativo por correo EXACTO del cliente
+//                                  (`?customerEmail=`), más recientes primero.
+//                                  NO unique (un cliente puede tener varios
+//                                  pedidos). `customer.email` se persiste ya
+//                                  normalizado (trim + lowercase) por CustomerSchema.
+OrderSchema.index({ "customer.email": 1, createdAt: -1 });
+
 const OrderModel = model("order", OrderSchema);
 
 export default OrderModel;
