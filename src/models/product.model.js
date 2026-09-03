@@ -1,5 +1,6 @@
 import { Schema, model } from "mongoose";
 import { PRODUCT_STATUS, PRODUCT_STATUSES } from "../helpers/productWorkflow.helper.js";
+import { STOCK_OP_STATE, STOCK_OP_STATES } from "../helpers/orderWorkflow.helper.js";
 
 // FASE 3 — Product Domain + Editor Workflow.
 //
@@ -43,6 +44,61 @@ const VariantSchema = new Schema(
     },
   },
   { versionKey: false },
+);
+
+// --- stockOps[] — LEDGER de operaciones de inventario (F4.3-B-R2.2) -----
+// AUTORIDAD de la mutación de inventario del checkout, CO-LOCALIZADA con `stock`
+// en el mismo documento para que "descontar stock" y "registrar la operación"
+// sean UNA sola escritura atómica (imposible con el ledger previo en Order, que
+// vivía en otro documento). `order.service.js` y un futuro reaper consultan aquí
+// —NO en `Order.stockAdjustments`, que es solo advisory— para saber si el stock
+// de una línea de pedido se movió y si ya fue restituido.
+//
+//   id             `${order._id}:${productId}` — determinístico, reconstruible en
+//                  recovery. Una sola operación por (orden, producto): `normalizeItems`
+//                  colapsa los productos duplicados ANTES de generar el id.
+//   qty            unidades retiradas de `stock` por esta operación (todo-o-nada
+//                  por línea). Inmutable. La compensación restaura EXACTAMENTE este
+//                  valor (autoridad = el documento, no el caller).
+//   state          decremented -> compensated (terminal). El `$inc +qty` y el
+//                  cambio de estado ocurren en la MISMA operación atómica
+//                  (update pipeline) — cierra la ventana "state cambiado / stock
+//                  sin restaurar".
+//   at             instante (commit) del decremento.
+//   compensatedAt  (solo auditoría) instante de la restitución; no participa en
+//                  ninguna decisión de lógica.
+//
+// Poda: SIEMPRE tras `Order.finalized === true` (nunca antes, nunca solo por
+// edad). Sin índice: el lookup va siempre acotado por `_id` del producto.
+const StockOpSchema = new Schema(
+  {
+    id: {
+      type: String,
+      required: [true, "Cada operación de stock necesita un identificador"],
+      trim: true,
+    },
+    qty: {
+      type: Number,
+      required: [true, "Cada operación de stock necesita una cantidad"],
+      min: [1, "La cantidad de la operación de stock debe ser al menos 1"],
+      validate: {
+        validator: Number.isInteger,
+        message: "La cantidad de la operación de stock debe ser un número entero",
+      },
+    },
+    state: {
+      type: String,
+      enum: {
+        values: STOCK_OP_STATES,
+        message: "El estado de la operación de stock no es válido",
+      },
+      default: STOCK_OP_STATE.DECREMENTED,
+    },
+    at: { type: Date, default: Date.now },
+    // Solo auditoría: cuándo se restituyó el stock. No se lee para ninguna decisión.
+    compensatedAt: { type: Date, default: null },
+  },
+  { _id: false },
 );
 
 const ProductSchema = new Schema(
@@ -108,6 +164,15 @@ const ProductSchema = new Schema(
       type: Number,
       min: [0, "El stock no puede ser negativo"],
       default: 0,
+    },
+
+    // Ledger de operaciones de inventario del checkout (F4.3-B-R2.2). Ver
+    // `StockOpSchema` arriba. Autoridad de la mutación de stock; poblado y podado
+    // por `order.service.js`. Vacío en productos que nunca han entrado a un
+    // checkout y en documentos legados (compat vía `default: []`).
+    stockOps: {
+      type: [StockOpSchema],
+      default: [],
     },
 
     // --- Publicación: status (workflow editorial) e isActive (activación
