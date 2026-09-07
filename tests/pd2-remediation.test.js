@@ -119,6 +119,10 @@ const validDraft = (over = {}) => ({
   description: "Descripcion suficiente para revision.",
   price: 42000,
   stock: 6,
+  // FASE 1 — obligatorios para ENVIAR A REVISION.
+  details: "Detalles del producto PD2.",
+  shippingInfo: "Envio 2-4 dias habiles.",
+  returnsInfo: "Cambios dentro de 30 dias.",
   categories: [ctx.cat._id.toString()],
   images: [{ url: "http://dusck.test/pd2.png", isMain: true }],
   ...over,
@@ -317,8 +321,8 @@ test("PD2-005 · Caso A — variants:[] sin stock sobre producto variantizado ->
     status: "DRAFT",
     isActive: false,
     variants: [
-      { sku: `PD2-A-${Date.now()}`, color: "Negro", stock: 5 },
-      { sku: `PD2-B-${Date.now()}`, color: "Azul", stock: 10 },
+      { sku: `PD2-A-${Date.now()}`, color: "Negro", size: "Única", stock: 5 },
+      { sku: `PD2-B-${Date.now()}`, color: "Azul", size: "Única", stock: 10 },
     ],
   });
   const res = await api(`/api/product/${p._id}`, { method: "PATCH", token: ctx.users.editorA.token, body: { variants: [] } });
@@ -334,7 +338,7 @@ test("PD2-005 · Caso B — variants:[] + stock:20 -> 200, variants vacías, sto
   const p = await seedProduct({
     status: "DRAFT",
     isActive: false,
-    variants: [{ sku: `PD2-C-${Date.now()}`, color: "Negro", stock: 9 }],
+    variants: [{ sku: `PD2-C-${Date.now()}`, color: "Negro", size: "Única", stock: 9 }],
   });
   const res = await api(`/api/product/${p._id}`, { method: "PATCH", token: ctx.users.editorA.token, body: { variants: [], stock: 20 } });
   assert.equal(res.status, 200);
@@ -365,8 +369,8 @@ test("PD2-005 · Caso D — PD-003 intacto: PATCH {stock:999} sobre producto var
     status: "DRAFT",
     isActive: false,
     variants: [
-      { sku: `PD2-D1-${Date.now()}`, color: "Negro", stock: 4 },
-      { sku: `PD2-D2-${Date.now()}`, color: "Azul", stock: 6 },
+      { sku: `PD2-D1-${Date.now()}`, color: "Negro", size: "Única", stock: 4 },
+      { sku: `PD2-D2-${Date.now()}`, color: "Azul", size: "Única", stock: 6 },
     ],
   });
   const res = await api(`/api/product/${p._id}`, { method: "PATCH", token: ctx.users.editorA.token, body: { stock: 999 } });

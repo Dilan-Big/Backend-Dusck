@@ -24,12 +24,17 @@ const DUP_FIELD_LABELS = {
 const CUSTOM_ERROR_STATUS = {
   DUPLICATE_SKU_LOCAL: 409,
   DUPLICATE_SKU_GLOBAL: 409,
+  // FASE 5 — Product Domain + Editor Workflow (Variantes + Stock)
+  DUPLICATE_VARIANT_COMBO: 409, // dos variantes con el mismo color+talla dentro del mismo producto
   INVALID_CATEGORY_REF: 400,
   // FASE 3 / Remediación 2
   INVALID_VARIANTS: 400, // PD2-004 — `variants` presente pero no es un array
   STOCK_REQUIRED: 400, // PD2-005 — quitar todas las variantes sin declarar `stock`
   // FASE 3 / Remediación 3
   INVALID_CATEGORIES: 400, // PD3-001 — `categories` presente pero no es un array
+  // FASE 1 — Product Model + Editor Workflow
+  INVALID_MODEL_INFO: 400, // `modelInfo` presente pero no es un objeto plano
+  INVALID_IMAGES: 400, // `images` presente pero no es un array
 };
 
 const sendWriteError = (res, error, entityLabel = "registro") => {

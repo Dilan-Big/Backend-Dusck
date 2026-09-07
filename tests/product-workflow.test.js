@@ -138,6 +138,10 @@ const validDraftPayload = (overrides = {}) => ({
   description: "Descripcion suficiente para pasar revision.",
   price: 50000,
   stock: 5,
+  // FASE 1 — obligatorios para ENVIAR A REVISION (no para guardar borrador).
+  details: "Composicion 100% algodon peinado. Lavar a mano.",
+  shippingInfo: "Envio nacional 2-4 dias habiles.",
+  returnsInfo: "Cambios dentro de 30 dias con etiqueta.",
   // `hombre` (nunca se borra en ningun test); `suelta` se usa solo en el test
   // de "categoria en uso" y termina eliminada, no sirve como default estable.
   categories: [ctx.categories.hombre._id.toString()],
@@ -238,14 +242,14 @@ test("SKU duplicado ENTRE productos distintos (creacion) -> 409", async (t) => {
   const first = await api("/api/product", {
     method: "POST",
     token: editorA.token,
-    body: validDraftPayload({ variants: [{ sku: "DUS-WF-GLOBAL-1", color: "Negro", stock: 1 }] }),
+    body: validDraftPayload({ variants: [{ sku: "DUS-WF-GLOBAL-1", color: "Negro", size: "Única", stock: 1 }] }),
   });
   assert.equal(first.status, 200);
 
   const second = await api("/api/product", {
     method: "POST",
     token: editorA.token,
-    body: validDraftPayload({ variants: [{ sku: "DUS-WF-GLOBAL-1", color: "Azul", stock: 4 }] }),
+    body: validDraftPayload({ variants: [{ sku: "DUS-WF-GLOBAL-1", color: "Azul", size: "Única", stock: 4 }] }),
   });
   assert.equal(second.status, 409);
 });
@@ -257,21 +261,21 @@ test("SKU duplicado contra otro producto EN UNA ACTUALIZACION -> 409", async (t)
   const a = await api("/api/product", {
     method: "POST",
     token: editorA.token,
-    body: validDraftPayload({ variants: [{ sku: "DUS-WF-UPD-A", color: "Negro", stock: 1 }] }),
+    body: validDraftPayload({ variants: [{ sku: "DUS-WF-UPD-A", color: "Negro", size: "Única", stock: 1 }] }),
   });
   const { data: productA } = await a.json();
 
   await api("/api/product", {
     method: "POST",
     token: editorA.token,
-    body: validDraftPayload({ variants: [{ sku: "DUS-WF-UPD-B", color: "Negro", stock: 1 }] }),
+    body: validDraftPayload({ variants: [{ sku: "DUS-WF-UPD-B", color: "Negro", size: "Única", stock: 1 }] }),
   });
 
   // intenta renombrar el SKU de A para que choque con el de B
   const res = await api(`/api/product/${productA._id}`, {
     method: "PATCH",
     token: editorA.token,
-    body: { variants: [{ sku: "DUS-WF-UPD-B", color: "Negro", stock: 1 }] },
+    body: { variants: [{ sku: "DUS-WF-UPD-B", color: "Negro", size: "Única", stock: 1 }] },
   });
   assert.equal(res.status, 409);
 });

@@ -2,10 +2,12 @@ import { Router } from "express";
 import {
   createProduct,
   deleteProductById,
+  deleteProductImage,
   getProduct,
   getProductById,
   updateProductById,
   updateProductStatus,
+  uploadProductImage,
 } from "../controllers/product.controllers.js"
 import autenticationUser, { optionalAuthentication } from "../middleware/autentication.middleware.js";
 import authorizationUser from "../middleware/authorizationUser.middelware.js";
@@ -40,6 +42,14 @@ router.patch('/:id', autenticationUser, authorizationUser(['administrador', 'sho
 // REJECTED/PUBLISHED). Unico endpoint para mover el ciclo de vida; la tabla
 // de transiciones valida rol + ownership + estado origen->destino.
 router.patch('/:id/status', autenticationUser, authorizationUser(['administrador', 'shop_manager', 'editor']), updateProductStatus);
+
+// FASE 4 — Imagenes reales (Cloudinary, upload intermediado por backend).
+// Mismo filtro de rol grueso que el resto del CRUD de contenido; la
+// autorizacion REAL (ownership + estado editable) la aplica el controller
+// via `editableFieldsFor` — identica regla que PATCH /:id, para que estas
+// rutas no puedan usarse como atajo para saltarse ownership/estado.
+router.post('/:id/images', autenticationUser, authorizationUser(['administrador', 'shop_manager', 'editor']), uploadProductImage);
+router.delete('/:id/images/:imageId', autenticationUser, authorizationUser(['administrador', 'shop_manager', 'editor']), deleteProductImage);
 
 // Eliminar un producto (se mantiene exclusivo de administrador/shop_manager;
 // el editor no tiene autoridad para borrar, solo para crear/editar/enviar).

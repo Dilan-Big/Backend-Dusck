@@ -11,14 +11,17 @@
     "test": "node --test",
     "test:security": "node --test \"tests/*.test.js\"",
     "seed": "node scripts/seed.js",
-    "migrate:product-domain": "node scripts/migrate-product-domain.js"
+    "migrate:product-domain": "node scripts/migrate-product-domain.js",
+    "verify:cloudinary": "node scripts/verify-cloudinary.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
+    "cloudinary": "^2.11.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.7.2"
+    "mongoose": "^9.7.2",
+    "multer": "^2.3.0"
   }
 }

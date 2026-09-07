@@ -2,13 +2,23 @@ import {
     dbCreateCategory,
     dbGetCategories,
     dbGetCategoryById,
+    dbGetPublicCategories,
+    dbGetPublicCategoryById,
     dbUpdateCategoryById,
     dbDeleteCategoryById
  } from "../services/category.service.js";
 import { dbProductsUseCategory } from "../services/product.services.js";
-import { CATEGORY_UPDATABLE_FIELDS } from "../config/global.config.js";
+import { CATEGORY_UPDATABLE_FIELDS, ROLES } from "../config/global.config.js";
 import { isValidObjectId, pickAllowed } from "../helpers/validation.helpers.js";
 import { sendWriteError } from "../helpers/writeError.helper.js";
+
+// F7-C — mismo conjunto de roles "admin-capable" que `product.controllers.js`
+// (duplicado a propósito, no importado desde ahí: son controllers hermanos
+// sin un módulo compartido hoy, y esto es una lista de 3 constantes, no vale
+// la pena un refactor cruzado fuera del alcance de F7). Un `subscriber` o una
+// request anónima NUNCA caen en la rama administrativa de categorías.
+const ADMIN_CAPABLE_ROLES = [ROLES.ADMIN, ROLES.SHOP_MANAGER, ROLES.EDITOR];
+const isAdminCapable = (role) => ADMIN_CAPABLE_ROLES.includes(role);
 
 
 const createCategory = async (req, res) => {
@@ -24,9 +34,33 @@ const createCategory = async (req, res) => {
     }
 }
 
+// F7-CLOSURE — `GET /category` sigue EXACTAMENTE el mismo contrato que
+// `GET /product` (ver `product.controllers.js` -> `getProduct`): el acceso
+// ampliado (categorías inactivas incluidas) exige DOS condiciones a la vez,
+//   1. `?all=true` explícito en la query — la INTENCIÓN de pedir el listado
+//      completo tiene que ser deliberada del consumidor, y
+//   2. rol admin-capable (`isAdminCapable`, resuelto vía `optionalAuthentication`).
+// Sin AMBAS, la respuesta es el contrato público (`dbGetPublicCategories`,
+// solo `isActive:true`) — da igual que el `authInterceptor` global del
+// frontend adjunte un `x-token` válido a una request del storefront: recibir
+// autenticación NO basta, hace falta el `?all=true`. `?all=true` por sí solo
+// tampoco amplía nada: un rol no administrativo (o anónimo) que lo mande
+// cae igualmente en la rama pública (mismo patrón que Product, nunca 403).
+//
+// Consumidores:
+//   · storefront (`basicos.ts`, `category-list.ts`, `HttpCategory`) — NUNCA
+//     manda `?all=true` -> siempre contrato público.
+//   · panel admin (`AdminCategoriesApi.list()`, usado también por
+//     `product-list.page`, `inventory.page` y el selector de
+//     `product-form.page` — incluido el rol `editor`) — manda `?all=true`
+//     para ver también las inactivas.
 const getCategory = async (req, res) => {
     try {
-        const data = await dbGetCategories();
+        const role = req.user?.role;
+        const wantsAll = req.query.all === "true";
+        const data = wantsAll && isAdminCapable(role)
+            ? await dbGetCategories()
+            : await dbGetPublicCategories();
         res.json({
             msg: "Se obtiene listado por categoria",
             data,
@@ -39,13 +73,27 @@ const getCategory = async (req, res) => {
     }
 }
 
+// F7-CLOSURE — misma regla que la lista y que `GET /product/:id`: el detalle
+// de una categoría inactiva solo se sirve con `?all=true` + rol admin-capable
+// a la vez. Cualquier otro caso (anónimo, rol no administrativo, o
+// admin-capable SIN `?all=true`) recibe el contrato público: una categoría
+// inactiva responde 404, igual que un producto no publicado (Regla §25: "no
+// encontrado" cubre tanto "no existe" como "no es públicamente visible", sin
+// filtrar más en el cliente). `?all=true` sin rol admin-capable NO abre nada.
 const getCategoryById = async (req, res) => {
     try {
         const id = req.params.id;
         if (!isValidObjectId(id)) {
             return res.status(400).json({ msg: "El ID de la categoría no es válido" });
         }
-        const data = await dbGetCategoryById(id);
+        const role = req.user?.role;
+        const wantsAll = req.query.all === "true";
+        const data = wantsAll && isAdminCapable(role)
+            ? await dbGetCategoryById(id)
+            : await dbGetPublicCategoryById(id);
+        if (!data) {
+            return res.status(404).json({ msg: "La categoría no se encuentra registrada" });
+        }
         res.json({
             msg: "Se obtiene una categoria por ID",
             data

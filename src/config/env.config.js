@@ -40,6 +40,20 @@ export const env = {
 
   // Origen permitido del frontend (para CORS en fases posteriores).
   frontendUrl: optional('FRONTEND_URL', 'http://localhost:4200'),
+
+  // FASE 4 — Cloudinary (imagenes de producto). Deliberadamente OPCIONAL a
+  // nivel de arranque (a diferencia de mongoUri/jwtSecret): si faltan, el
+  // servidor sigue levantando (no rompe el resto de fases/tests que no tocan
+  // imagenes) y las rutas de upload fallan de forma controlada en runtime
+  // (ver `config/cloudinary.config.js` -> `assertCloudinaryConfigured`).
+  // NUNCA se imprime el valor de ninguna de estas variables.
+  cloudinary: {
+    cloudName: optional('CLOUDINARY_CLOUD_NAME', ''),
+    apiKey: optional('CLOUDINARY_API_KEY', ''),
+    apiSecret: optional('CLOUDINARY_API_SECRET', ''),
+    // Carpeta raiz de Cloudinary donde se organizan las imagenes de producto.
+    uploadFolder: optional('CLOUDINARY_UPLOAD_FOLDER', 'dusck/products'),
+  },
 };
 
 export default env;

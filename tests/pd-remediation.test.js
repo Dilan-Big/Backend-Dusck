@@ -242,8 +242,8 @@ test("PD-003 · producto CON variantes: Product.stock = SUM(variants.stock)", as
       images: [{ url: "http://dusck.test/v.png", isMain: true }],
       stock: 999, // debe ignorarse
       variants: [
-        { sku: `PD-A-${Date.now()}`, color: "Negro", stock: 10 },
-        { sku: `PD-B-${Date.now()}`, color: "Blanco", stock: 8 },
+        { sku: `PD-A-${Date.now()}`, color: "Negro", size: "Única", stock: 10 },
+        { sku: `PD-B-${Date.now()}`, color: "Blanco", size: "Única", stock: 8 },
       ],
     },
   });
@@ -257,8 +257,8 @@ test("PD-003 · PATCH { stock: 999 } sobre producto CON variantes NO desincroniz
     status: "DRAFT",
     isActive: false,
     variants: [
-      { sku: `PD-C-${Date.now()}`, color: "Negro", stock: 10 },
-      { sku: `PD-D-${Date.now()}`, color: "Azul", stock: 8 },
+      { sku: `PD-C-${Date.now()}`, color: "Negro", size: "Única", stock: 10 },
+      { sku: `PD-D-${Date.now()}`, color: "Azul", size: "Única", stock: 8 },
     ],
   });
   // el hook de creación ya dejó stock = 18
@@ -282,22 +282,27 @@ test("PD-003 · modificar y eliminar variantes recalcula Product.stock", async (
     status: "DRAFT",
     isActive: false,
     variants: [
-      { sku: `PD-E-${Date.now()}`, color: "Negro", stock: 10 },
-      { sku: `PD-F-${Date.now()}`, color: "Azul", stock: 8 },
+      { sku: `PD-E-${Date.now()}`, color: "Negro", size: "Única", stock: 10 },
+      { sku: `PD-F-${Date.now()}`, color: "Azul", size: "Única", stock: 8 },
     ],
   });
 
   const upd = await api(`/api/product/${p._id}`, {
     method: "PATCH",
     token: ctx.users.editorA.token,
-    body: { variants: [{ sku: `PD-G-${Date.now()}`, color: "Negro", stock: 15 }, { sku: `PD-H-${Date.now()}`, color: "Azul", stock: 5 }] },
+    body: {
+      variants: [
+        { sku: `PD-G-${Date.now()}`, color: "Negro", size: "Única", stock: 15 },
+        { sku: `PD-H-${Date.now()}`, color: "Azul", size: "Única", stock: 5 },
+      ],
+    },
   });
   assert.equal((await upd.json()).data.stock, 20);
 
   const del = await api(`/api/product/${p._id}`, {
     method: "PATCH",
     token: ctx.users.editorA.token,
-    body: { variants: [{ sku: `PD-I-${Date.now()}`, color: "Negro", stock: 15 }] },
+    body: { variants: [{ sku: `PD-I-${Date.now()}`, color: "Negro", size: "Única", stock: 15 }] },
   });
   assert.equal((await del.json()).data.stock, 15);
 });
@@ -307,7 +312,7 @@ test("PD-003 · quitar TODAS las variantes: vuelve a mandar el stock plano", asy
   const p = await seedProduct({
     status: "DRAFT",
     isActive: false,
-    variants: [{ sku: `PD-J-${Date.now()}`, color: "Negro", stock: 10 }],
+    variants: [{ sku: `PD-J-${Date.now()}`, color: "Negro", size: "Única", stock: 10 }],
   });
   const res = await api(`/api/product/${p._id}`, {
     method: "PATCH",
@@ -344,6 +349,10 @@ test("PD-004 · carrera aprobar vs. rechazar: 1 gana (200), 1 pierde (409), esta
       slug: `carrera-pd-${Date.now()}`,
       description: "descripcion suficiente",
       price: 5000,
+      // FASE 1 — obligatorios para ENVIAR A REVISION.
+      details: "detalles",
+      shippingInfo: "envio 2-4 dias",
+      returnsInfo: "cambios 30 dias",
       categories: [ctx.cat._id.toString()],
       images: [{ url: "http://dusck.test/race.png", isMain: true }],
       stock: 3,
