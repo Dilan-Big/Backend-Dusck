@@ -4,6 +4,8 @@ import {
   createOrderController,
   listOrdersController,
   getOrderByIdController,
+  updateOrderStatusController,
+  updateOrderPaymentController,
 } from "../controllers/order.controller.js";
 import autenticationUser, {
   authenticateOptionalStrict,
@@ -38,6 +40,28 @@ router.get(
   autenticationUser,
   authorizationUser(["administrador", "shop_manager"]),
   getOrderByIdController,
+);
+
+// PATCH /:id/status  (UI-5.1) — transición del ciclo de vida del pedido
+//   (pending_confirmation -> confirmed -> ready_to_ship -> shipped -> delivered,
+//   y cancelación desde los 3 estados previos al despacho). Misma política de
+//   auth/rol que el listado y el detalle. La máquina de estados
+//   (`orderWorkflow.helper.js`) revalida el rol por transición: la guarda de
+//   ruta es la primera línea, no la única.
+router.patch(
+  "/:id/status",
+  autenticationUser,
+  authorizationUser(["administrador", "shop_manager"]),
+  updateOrderStatusController,
+);
+
+// PATCH /:id/payment  (UI-5.1) — estado del cobro COD (pending -> paid | failed).
+//   Eje independiente de `status`. Nunca accesible a invitado ni usuario normal.
+router.patch(
+  "/:id/payment",
+  autenticationUser,
+  authorizationUser(["administrador", "shop_manager"]),
+  updateOrderPaymentController,
 );
 
 export default router;

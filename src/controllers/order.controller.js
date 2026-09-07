@@ -1,8 +1,12 @@
 import { createOrder } from "../services/order.service.js";
 import { listFinalizedOrders, getFinalizedOrderById } from "../services/order.read.service.js";
+import {
+  transitionOrderStatus,
+  transitionOrderPayment,
+} from "../services/order.workflow.service.js";
 import { dbDeleteCartByUserId } from "../services/cart.service.js";
 import { isPlainString, isValidObjectId, pickAllowed } from "../helpers/validation.helpers.js";
-import { ORDER_STATUSES, ORDER_NUMBER_REGEX } from "../helpers/orderWorkflow.helper.js";
+import { ORDER_STATUSES, ORDER_NUMBER_REGEX, PAYMENT_STATUSES } from "../helpers/orderWorkflow.helper.js";
 
 // FASE 4.3-C — Wiring HTTP de POST /api/orders.
 //
@@ -472,6 +476,120 @@ const getOrderByIdController = async (req, res) => {
   }
 };
 
+// ====================================================================
+// UI-5.1 — PATCH /api/orders/:id/status  (transición del ciclo de vida)
+// ====================================================================
+//
+// Adapter HTTP puro: valida `:id` y el body por LISTA BLANCA (`status`, `note`
+// — nada más se lee, jamás `...req.body`), deriva el actor de `req.user`
+// (nunca del body) y delega TODA la regla de negocio en
+// `order.workflow.service.js::transitionOrderStatus` (máquina de estados +
+// autorización por rol + atomicidad + restitución de inventario). El servicio
+// devuelve `{ ok, status, msg }`; aquí solo se traduce a HTTP.
+
+const MAX_STATUS_NOTE = 500; // = maxlength de `statusHistory.note` (order.model.js)
+const MAX_PAYMENT_NOTE = 300; // = maxlength de `payment.note` (order.model.js)
+
+// `note` opcional: si viene, debe ser string y no exceder el límite del schema.
+const validateNote = (raw, max) => {
+  if (raw === undefined || raw === null) return { ok: true, value: undefined };
+  if (!isPlainString(raw)) return { ok: false };
+  if (raw.length > max) return { ok: false };
+  return { ok: true, value: raw };
+};
+
+const updateOrderStatusController = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ msg: "El identificador del pedido no es válido" });
+    }
+
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    // `status` es el campo del contrato; `toStatus` se acepta como alias por
+    // coherencia con `PATCH /product/:id/status`.
+    const status = body.status ?? body.toStatus;
+    if (!isPlainString(status) || !ORDER_STATUSES.includes(status)) {
+      return res.status(400).json({ msg: "Debes indicar un `status` de pedido válido" });
+    }
+
+    const note = validateNote(body.note, MAX_STATUS_NOTE);
+    if (!note.ok) {
+      return res.status(400).json({
+        msg: `La nota no es válida (texto de hasta ${MAX_STATUS_NOTE} caracteres)`,
+      });
+    }
+
+    const result = await transitionOrderStatus({
+      orderId: id,
+      toStatus: status,
+      actor: req.user, // autoridad del actor: SIEMPRE del token verificado
+      note: note.value,
+    });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ msg: result.msg });
+    }
+
+    return res.status(200).json({
+      msg: "Estado del pedido actualizado correctamente",
+      data: toAdminOrderDetail(result.order.toObject ? result.order.toObject() : result.order),
+    });
+  } catch (error) {
+    console.error(`[order.controller] updateOrderStatus -> ${error && error.name}`);
+    return res.status(500).json({ msg: "No se pudo actualizar el estado del pedido" });
+  }
+};
+
+// ====================================================================
+// UI-5.1 — PATCH /api/orders/:id/payment  (estado de cobro COD)
+// ====================================================================
+//
+// Eje INDEPENDIENTE de `order.status`. Misma mecánica: lista blanca
+// (`status`, `note`), actor de `req.user`, negocio en el servicio
+// (`transitionOrderPayment`). Solo `pending -> paid | failed`; sin retrocesos.
+
+const updateOrderPaymentController = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ msg: "El identificador del pedido no es válido" });
+    }
+
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const status = body.status;
+    if (!isPlainString(status) || !PAYMENT_STATUSES.includes(status)) {
+      return res.status(400).json({ msg: "Debes indicar un `status` de pago válido" });
+    }
+
+    const note = validateNote(body.note, MAX_PAYMENT_NOTE);
+    if (!note.ok) {
+      return res.status(400).json({
+        msg: `La nota no es válida (texto de hasta ${MAX_PAYMENT_NOTE} caracteres)`,
+      });
+    }
+
+    const result = await transitionOrderPayment({
+      orderId: id,
+      toStatus: status,
+      actor: req.user,
+      note: note.value,
+    });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ msg: result.msg });
+    }
+
+    return res.status(200).json({
+      msg: "Estado de pago actualizado correctamente",
+      data: toAdminOrderDetail(result.order.toObject ? result.order.toObject() : result.order),
+    });
+  } catch (error) {
+    console.error(`[order.controller] updateOrderPayment -> ${error && error.name}`);
+    return res.status(500).json({ msg: "No se pudo actualizar el estado de pago del pedido" });
+  }
+};
+
 export {
   createOrderController,
   toPublicOrder,
@@ -479,4 +597,6 @@ export {
   toAdminOrderListItem,
   getOrderByIdController,
   toAdminOrderDetail,
+  updateOrderStatusController,
+  updateOrderPaymentController,
 };

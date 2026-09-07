@@ -29,9 +29,14 @@ console.log('ROLES PERMITIDOS:', JSON.stringify(allowedRoles));
       // Paso 3: Da acceso a la ejecucion de la siguiente funcion definida en la ruta
       next();
     } catch ( error ) {
-      // A. Capturar error definido en cuerpo del try/catch
+      // A. Capturar error definido en cuerpo del try/catch.
+      // UI-5.1 — la ausencia de rol/permisos es un problema de AUTORIZACIÓN:
+      // debe responder 403, no 404 (que semánticamente significa "no existe" y
+      // fue señalado en la auditoría UI-5.0 como hallazgo BAJO). El resto del
+      // middleware ya devolvía 403 para "rol no incluido"; esto solo alinea la
+      // rama de "rol ausente" con esa semántica. Sin refactor adicional.
       if (error.message.includes("No tiene los permisos definidos")) {
-        return res.status(404).json({
+        return res.status(403).json({
           msg: error.message,
         });
       }

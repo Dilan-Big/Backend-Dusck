@@ -12,6 +12,11 @@
 // El backend es la autoridad. Nada de esto se duplica de forma distinta en
 // Angular: el frontend solo refleja lo que este dominio ya define.
 
+// UI-5.1 — la máquina de estados del pedido (más abajo) resuelve autorización
+// por rol, igual que `productWorkflow.helper.js`. `global.config.js` no importa
+// nada de `helpers/`, así que no hay ciclo (mismo import que productWorkflow).
+import { ROLES } from "../config/global.config.js";
+
 // --- Estados del pedido --------------------------------------------------
 //
 // Contrato F4.2 (cerrado): exactamente estos 8 estados, ni uno más.
@@ -159,3 +164,156 @@ export const STOCK_OP_STATE = Object.freeze({
 });
 
 export const STOCK_OP_STATES = Object.values(STOCK_OP_STATE);
+
+// ======================================================================
+// UI-5.1 — Máquina de estados del pedido (workflow de negocio)
+// ======================================================================
+//
+// F4.3-A/B dejó los 8 estados de `ORDER_STATUS` declarados en el schema pero
+// SIN una máquina de transición: una orden nacía en `pending_confirmation` y
+// ahí se quedaba. UI-5.1 añade la ÚNICA autoridad de "qué transición es legal,
+// para qué actor, con qué efectos". Mismo patrón que `productWorkflow.helper.js`
+// (`PRODUCT_TRANSITIONS` + `canTransitionProduct`): la tabla vive aquí y NADIE
+// más (controller / service / route / frontend) reimplementa las reglas.
+//
+// Ejes INDEPENDIENTES (contrato F4.2, no se mezclan):
+//   · `order.status`   — ciclo logístico del pedido (esta máquina).
+//   · `payment.status` — cobro COD (PAYMENT_TRANSITIONS, más abajo).
+//
+// Alcance deliberado de UI-5.1: SOLO el camino lineal feliz + cancelación desde
+// los 3 estados previos al despacho. `failed_delivery` y `returned` siguen
+// declarados en el enum pero permanecen INALCANZABLES — las excepciones de
+// entrega y las devoluciones son una fase posterior y no se improvisan aquí.
+
+// Roles que gestionan la operación de pedidos. Coincide con la política ya
+// vigente en las rutas de lectura (`GET /api/orders` -> administrador +
+// shop_manager). NO se introduce un rol nuevo ni un sistema de permisos
+// granular: la autoridad sigue siendo el rol de `req.user` (cargado de Mongo
+// en cada request por `autentication.middleware.js`).
+export const ORDER_FULFILLMENT_ROLES = Object.freeze([ROLES.ADMIN, ROLES.SHOP_MANAGER]);
+
+const OT = (from, to) => `${from}->${to}`;
+
+// Cada arista válida del grafo de estados del pedido:
+//   roles         quién puede ejecutarla.
+//   requiresNote  exige `note` no vacía en el body (queda en statusHistory).
+//   restock       la transición devuelve al inventario las unidades que el
+//                 checkout reservó (solo cancelaciones). Ver
+//                 `order.workflow.service.js::restockOrderInventory`.
+export const ORDER_TRANSITIONS = Object.freeze({
+  [OT(ORDER_STATUS.PENDING_CONFIRMATION, ORDER_STATUS.CONFIRMED)]: {
+    roles: ORDER_FULFILLMENT_ROLES,
+  },
+  [OT(ORDER_STATUS.CONFIRMED, ORDER_STATUS.READY_TO_SHIP)]: {
+    roles: ORDER_FULFILLMENT_ROLES,
+  },
+  [OT(ORDER_STATUS.READY_TO_SHIP, ORDER_STATUS.SHIPPED)]: {
+    roles: ORDER_FULFILLMENT_ROLES,
+  },
+  [OT(ORDER_STATUS.SHIPPED, ORDER_STATUS.DELIVERED)]: {
+    roles: ORDER_FULFILLMENT_ROLES,
+  },
+  // Cancelación: solo ANTES del despacho. `note` obligatoria (por qué se
+  // canceló) y `restock` (las unidades vuelven al inventario, exactamente una
+  // vez — ver el servicio). `shipped`/`delivered` NO son cancelables: una
+  // devolución posterior sería otra funcionalidad, fuera de UI-5.1.
+  [OT(ORDER_STATUS.PENDING_CONFIRMATION, ORDER_STATUS.CANCELLED)]: {
+    roles: ORDER_FULFILLMENT_ROLES,
+    requiresNote: true,
+    restock: true,
+  },
+  [OT(ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED)]: {
+    roles: ORDER_FULFILLMENT_ROLES,
+    requiresNote: true,
+    restock: true,
+  },
+  [OT(ORDER_STATUS.READY_TO_SHIP, ORDER_STATUS.CANCELLED)]: {
+    roles: ORDER_FULFILLMENT_ROLES,
+    requiresNote: true,
+    restock: true,
+  },
+});
+
+// Estados desde los que una cancelación restituye stock. Derivado de la tabla
+// (no duplicado): lo consume el servicio de recuperación / un futuro reaper.
+export const ORDER_RESTOCK_FROM_STATUSES = Object.freeze(
+  Object.entries(ORDER_TRANSITIONS)
+    .filter(([, rule]) => rule.restock)
+    .map(([key]) => key.split("->")[0]),
+);
+
+/**
+ * ¿Puede `user` mover `order.status` a `toStatus`?
+ * @returns {{ok:true, rule:object} | {ok:false, reason:string}}
+ */
+export function canTransitionOrder(order, toStatus, user) {
+  if (!ORDER_STATUSES.includes(toStatus)) {
+    return { ok: false, reason: "invalid-status" };
+  }
+  const rule = ORDER_TRANSITIONS[OT(order.status, toStatus)];
+  if (!rule) {
+    return { ok: false, reason: "transition-not-allowed" };
+  }
+  if (!rule.roles.includes(user?.role)) {
+    return { ok: false, reason: "role-not-allowed" };
+  }
+  return { ok: true, rule };
+}
+
+// --- Pago (COD) — eje independiente de `order.status` ------------------
+//
+// F4 es contra entrega: sin pasarela. El cobro lo confirma manualmente un
+// operador. Solo se permite AVANZAR desde `pending`; los retrocesos
+// financieros (`paid -> pending`, `paid -> failed`) NO se permiten — un
+// reembolso sería un workflow aparte, fuera de UI-5.1.
+const PT = (from, to) => `${from}->${to}`;
+
+export const PAYMENT_TRANSITIONS = Object.freeze({
+  [PT(PAYMENT_STATUS.PENDING, PAYMENT_STATUS.PAID)]: {
+    roles: ORDER_FULFILLMENT_ROLES,
+  },
+  [PT(PAYMENT_STATUS.PENDING, PAYMENT_STATUS.FAILED)]: {
+    roles: ORDER_FULFILLMENT_ROLES,
+    requiresNote: true,
+  },
+});
+
+/**
+ * ¿Puede `user` mover `order.payment.status` a `toStatus`?
+ * @returns {{ok:true, rule:object} | {ok:false, reason:string}}
+ */
+export function canTransitionPayment(order, toStatus, user) {
+  if (!PAYMENT_STATUSES.includes(toStatus)) {
+    return { ok: false, reason: "invalid-status" };
+  }
+  const current = order?.payment?.status;
+  const rule = PAYMENT_TRANSITIONS[PT(current, toStatus)];
+  if (!rule) {
+    return { ok: false, reason: "transition-not-allowed" };
+  }
+  if (!rule.roles.includes(user?.role)) {
+    return { ok: false, reason: "role-not-allowed" };
+  }
+  return { ok: true, rule };
+}
+
+// Mensaje + status HTTP para un `reason` de `canTransitionOrder` /
+// `canTransitionPayment`. Alineado con las convenciones del backend:
+//   invalid-status         -> 400 (payload inválido)
+//   transition-not-allowed -> 409 (conflicto con el estado actual)
+//   role-not-allowed       -> 403 (autorización)
+export function orderTransitionError(reason) {
+  switch (reason) {
+    case "invalid-status":
+      return { status: 400, msg: "El estado destino no es válido" };
+    case "transition-not-allowed":
+      return {
+        status: 409,
+        msg: "Esa transición no está permitida desde el estado actual del pedido",
+      };
+    case "role-not-allowed":
+      return { status: 403, msg: "Tu rol no tiene autorización para gestionar pedidos" };
+    default:
+      return { status: 409, msg: "Transición de estado no permitida" };
+  }
+}

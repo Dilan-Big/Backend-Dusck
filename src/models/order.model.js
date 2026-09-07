@@ -307,6 +307,24 @@ const PaymentSchema = new Schema(
       },
       default: PAYMENT_STATUS.PENDING,
     },
+    // UI-5.1 — instante en que un operador confirmó el cobro COD (status ->
+    // "paid"). `null` mientras el pago siga pendiente o falle. Lo escribe SOLO
+    // `order.workflow.service.js` (PATCH /api/orders/:id/payment); nunca el
+    // cliente. Sirve para "ingresos cobrados" en la analítica de una fase
+    // posterior (UI-5.3+) sin tener que aproximar con `updatedAt`.
+    paidAt: {
+      type: Date,
+      default: null,
+    },
+    // UI-5.1 — nota del operador sobre el último cambio de estado de pago
+    // (p. ej. por qué se marcó "failed"). Opcional. Corto y sin PII de tarjeta
+    // (COD: no hay datos de tarjeta que registrar).
+    note: {
+      type: String,
+      trim: true,
+      maxlength: [300, "La nota de pago no puede exceder los 300 caracteres"],
+      default: null,
+    },
   },
   { _id: false },
 );
@@ -457,6 +475,20 @@ const OrderSchema = new Schema(
       default: false,
     },
 
+    // UI-5.1 — marcador de la restitución de inventario tras CANCELAR una orden
+    // ya finalizada. Se pone en `true` (best-effort) SOLO después de que cada
+    // línea de `items[]` haya devuelto sus unidades a `Product.stock` mediante
+    // una operación atómica idempotente (ver
+    // `order.workflow.service.js::restockOrderInventory`). Un futuro reaper de
+    // backstop escanea `{ status:"cancelled", stockRestored:false }` para
+    // reintentar una restitución que quedó a medias por un crash. La corrección
+    // NO depende de este marcador (la idempotencia la garantiza el guard
+    // `stockOps.id` por producto); es observabilidad + objetivo del backstop.
+    stockRestored: {
+      type: Boolean,
+      default: false,
+    },
+
     customer: {
       type: CustomerSchema,
       required: [true, "El pedido necesita los datos del cliente"],
@@ -538,6 +570,15 @@ OrderSchema.index({ "export.status": 1 });
 OrderSchema.index(
   { stockOpsPruned: 1 },
   { partialFilterExpression: { finalized: true, stockOpsPruned: false } },
+);
+
+//   { stockRestored } PARCIAL   Backstop de la restitución de inventario tras
+//                               cancelar (UI-5.1): solo indexa las órdenes
+//                               canceladas cuya restitución quedó pendiente.
+//                               Conjunto minúsculo en régimen normal.
+OrderSchema.index(
+  { stockRestored: 1 },
+  { partialFilterExpression: { status: ORDER_STATUS.CANCELLED, stockRestored: false } },
 );
 
 //   { customer.email, createdAt }  F4.3-C.3.1 — GET /api/orders: filtro
