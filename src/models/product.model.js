@@ -121,6 +121,16 @@ const StockOpSchema = new Schema(
         message: "La cantidad de la operación de stock debe ser un número entero",
       },
     },
+    // TALLAS — talla de la variante que esta operación movió, cuando el producto
+    // tiene variantes. Opcional (ausente == producto simple, mismo camino de
+    // inventario de siempre sobre `Product.stock`). La compensación
+    // (`compensateProductOp`, update pipeline) LEE este valor del propio registro
+    // para saber a qué `variants[].stock` devolver `qty` — nunca lo recibe del
+    // caller (misma autoridad-en-el-documento que `qty`).
+    size: {
+      type: String,
+      trim: true,
+    },
     state: {
       type: String,
       enum: {

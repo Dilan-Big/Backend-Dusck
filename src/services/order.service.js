@@ -71,10 +71,53 @@ const ERR = {
 };
 
 // Un producto es comprable en línea si está PUBLICADO + activo (misma regla que
-// `cart.service.js::isPurchasable`). La restricción "sin variantes" se comprueba
-// aparte (F4.2 / BLOCKER-01).
+// `cart.service.js::isPurchasable`).
 const isPublishedActive = (p) =>
   !!p && p.status === PRODUCT_STATUS.PUBLISHED && p.isActive === true;
+
+// TALLAS — Resuelve la talla de una línea contra las variantes REALES del
+// producto (nunca contra un enum del backend: coincidencia exacta con
+// `variants[].size` tras trim). Reemplaza el antiguo BLOCKER-01 (que rechazaba
+// de plano todo producto con variantes).
+//
+//   producto SIMPLE (variants: [])       -> la línea NO puede llevar talla.
+//   producto CON variantes               -> talla OBLIGATORIA y debe existir.
+//                                           Debe resolver a EXACTAMENTE una
+//                                           variante (una talla que coincide con
+//                                           varias variantes = matriz color×talla,
+//                                           fuera de alcance: se rechaza, igual que
+//                                           TODO producto con variantes antes de
+//                                           esta funcionalidad -> no es regresión).
+//
+// Devuelve `{ size }` (talla canónica, o `undefined` para simple) o lanza
+// `ERR.business` (422) con un mensaje sin PII.
+const resolveLineSize = (product, rawSize) => {
+  const trimmed = rawSize !== undefined && rawSize !== null ? String(rawSize).trim() : "";
+  const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
+
+  if (!hasVariants) {
+    if (trimmed) {
+      throw ERR.business("Uno de los productos no maneja tallas y no se puede pedir con talla");
+    }
+    return { size: undefined };
+  }
+
+  if (!trimmed) {
+    throw ERR.business("Debes elegir una talla para uno de los productos");
+  }
+  const matches = product.variants.filter(
+    (v) => typeof v.size === "string" && v.size.trim() === trimmed,
+  );
+  if (matches.length === 0) {
+    throw ERR.business("La talla seleccionada no existe para uno de los productos");
+  }
+  if (matches.length > 1) {
+    throw ERR.business(
+      "Uno de los productos requiere además elegir color y no está disponible para compra en línea",
+    );
+  }
+  return { size: matches[0].size.trim() };
+};
 
 // Imagen principal según la convención real de `product_b.images` ([{url,isMain}]):
 // la marcada `isMain`, si no la primera, si no `null` (contrato de `OrderItem.image`).
@@ -136,6 +179,18 @@ const validateInput = ({ items, customer, shippingAddress, notes, userId, source
     if (line.quantity < MIN_ORDER_ITEM_QTY) {
       throw ERR.business(`La cantidad de la línea #${i + 1} debe ser al menos ${MIN_ORDER_ITEM_QTY}`);
     }
+    // TALLAS — `size` OPCIONAL. Si viene, debe ser un string simple (nunca un
+    // objeto `{ $ne: null }`) y no exceder 20 caracteres (= maxlength del
+    // schema). Que la talla EXISTA para el producto se comprueba más adelante,
+    // contra `product_b.variants[].size` (nunca contra un enum del backend).
+    if (line.size !== undefined && line.size !== null) {
+      if (!isPlainString(line.size)) {
+        throw ERR.input(`La línea #${i + 1} tiene una talla inválida`);
+      }
+      if (line.size.trim().length > 20) {
+        throw ERR.input(`La línea #${i + 1} tiene una talla demasiado larga`);
+      }
+    }
   });
 
   if (userId !== null && userId !== undefined && !isValidObjectId(String(userId))) {
@@ -161,18 +216,30 @@ const validateInput = ({ items, customer, shippingAddress, notes, userId, source
   );
 };
 
-// --- 2/3. Normalización por productId + revalidación de rango ----------
-
+// --- 2/3. Normalización por (productId + size) + revalidación de rango ----------
+//
+// TALLAS — la identidad de una línea es (productId + talla): dos tallas del mismo
+// producto NO se fusionan (son operaciones de inventario distintas, contra
+// variantes distintas). Una línea sin talla (producto simple) se agrupa por
+// productId a secas — comportamiento previo intacto. La talla CANÓNICA que se
+// conserva en la línea es la primera vista tras `trim` (la validación de que
+// exista para el producto ocurre después, en `createOrder`).
 const normalizeItems = (items) => {
-  const byId = new Map();
-  for (const { productId, quantity } of items) {
-    const key = String(productId);
-    byId.set(key, (byId.get(key) || 0) + quantity);
+  const byKey = new Map();
+  for (const raw of items) {
+    const productId = String(raw.productId);
+    const size =
+      raw.size !== undefined && raw.size !== null && String(raw.size).trim()
+        ? String(raw.size).trim()
+        : undefined;
+    const key = `${productId}::${size ? size.toLowerCase() : ""}`;
+    const prev = byKey.get(key);
+    byKey.set(key, { productId, size, quantity: (prev ? prev.quantity : 0) + raw.quantity });
   }
-  const normalized = [...byId.entries()].map(([productId, quantity]) => ({ productId, quantity }));
+  const normalized = [...byKey.values()];
 
   // El límite 1..50 se revalida DESPUÉS de sumar: la normalización no puede
-  // usarse para evadirlo (A×40 + A×11 = 51 -> inválido).
+  // usarse para evadirlo (A×40 + A×11 = 51 -> inválido). Aplica POR (producto+talla).
   for (const line of normalized) {
     if (line.quantity < MIN_ORDER_ITEM_QTY || line.quantity > MAX_ORDER_ITEM_QTY) {
       throw ERR.business(
@@ -191,30 +258,76 @@ const normalizeItems = (items) => {
 //   operationId = `${order._id}:${productId}`  (una sola op por (orden, producto);
 //   `normalizeItems` ya colapsó los productos duplicados).
 
-const operationIdFor = (orderId, productId) => `${String(orderId)}:${String(productId)}`;
+// TALLAS — clave determinista de la talla para el `operationId` (trim +
+// minúsculas). Solo se usa para construir el id del ledger; el snapshot conserva
+// la talla canónica tal cual. `""`/ausente -> sin sufijo (producto simple).
+const sizeKeyFor = (size) => (size ? String(size).trim().toLowerCase() : "");
+
+// `operationId` del ledger `product_b.stockOps[]`. Una sola operación por
+// (orden, producto, talla): `normalizeItems` colapsa los duplicados de esa
+// misma tripleta ANTES de generar el id.
+//   producto simple  -> `${orderId}:${productId}`            (formato histórico, intacto)
+//   producto c/talla -> `${orderId}:${productId}:${sizeKey}` (una op por talla; sin colisión)
+const operationIdFor = (orderId, productId, size) => {
+  const base = `${String(orderId)}:${String(productId)}`;
+  const key = sizeKeyFor(size);
+  return key ? `${base}:${key}` : base;
+};
 
 /**
  * DECREMENTO ATÓMICO de stock: `$inc stock -qty` + registro de la operación en
  * `stockOps` en UNA sola escritura sobre el documento Product.
  *
+ * TALLAS — dos caminos, seleccionados por `size`:
+ *   · SIN `size` (producto simple): filtro `variants: { $size: 0 }` + `$inc stock`
+ *     — EXACTAMENTE el comportamiento previo, byte a byte.
+ *   · CON `size` (producto con variantes): el filtro exige que exista UNA variante
+ *     de esa talla con stock suficiente; el `$inc` baja `variants.$[v].stock` Y
+ *     el agregado `stock` en la MISMA escritura atómica (nunca se desincronizan);
+ *     el `arrayFilters` acota el `$inc` a esa única variante. `createOrder` ya
+ *     garantizó (antes de llamar aquí) que la talla resuelve a exactamente una
+ *     variante, así que el arrayFilter nunca toca más de un elemento.
+ *
  * @returns {Promise<{outcome:"decremented"|"already_decremented"|"already_compensated"|"stock_conflict"}>}
  */
-const decrementProductStock = async (productId, qty, operationId) => {
-  const updated = await ProductModel.findOneAndUpdate(
-    {
-      _id: productId,
-      status: PRODUCT_STATUS.PUBLISHED,
-      isActive: true,
-      variants: { $size: 0 },
-      stock: { $gte: qty },
-      "stockOps.id": { $ne: operationId }, // guard de idempotencia
-    },
-    {
+const decrementProductStock = async (productId, qty, operationId, size) => {
+  const wantsSize = !!(size && String(size).trim());
+
+  const filter = {
+    _id: productId,
+    status: PRODUCT_STATUS.PUBLISHED,
+    isActive: true,
+    "stockOps.id": { $ne: operationId }, // guard de idempotencia
+  };
+  let update;
+  let options = { returnDocument: "after" };
+
+  if (wantsSize) {
+    const canonical = String(size).trim();
+    filter.variants = { $elemMatch: { size: canonical, stock: { $gte: qty } } };
+    update = {
+      $inc: { "variants.$[v].stock": -qty, stock: -qty },
+      $push: {
+        stockOps: {
+          id: operationId,
+          qty,
+          size: canonical,
+          state: STOCK_OP_STATE.DECREMENTED,
+          at: new Date(),
+        },
+      },
+    };
+    options.arrayFilters = [{ "v.size": canonical, "v.stock": { $gte: qty } }];
+  } else {
+    filter.variants = { $size: 0 };
+    filter.stock = { $gte: qty };
+    update = {
       $inc: { stock: -qty },
       $push: { stockOps: { id: operationId, qty, state: STOCK_OP_STATE.DECREMENTED, at: new Date() } },
-    },
-    { returnDocument: "after" },
-  );
+    };
+  }
+
+  const updated = await ProductModel.findOneAndUpdate(filter, update, options);
   if (updated) return { outcome: "decremented" };
 
   // No hubo match. Desambiguar SIN modificar estado: ¿ya existe la operación?
@@ -239,6 +352,12 @@ const decrementProductStock = async (productId, qty, operationId) => {
  * UNA update pipeline sobre el documento Product. Cierra la ventana
  * "state cambiado / stock sin restaurar": no existe punto intermedio.
  *
+ * TALLAS — si el registro de la operación lleva `size` (producto con variantes),
+ * la MISMA pipeline devuelve `qty` a `variants[].stock` de esa talla ADEMÁS del
+ * agregado `stock`. La talla se lee del PROPIO registro (`$$op.size`), nunca del
+ * caller — misma autoridad-en-el-documento que `qty`. Sigue siendo UNA sola
+ * escritura a Product (el test CRITICAL `comp/atomic` cuenta exactamente 1).
+ *
  * Idempotente: si la operación no está en `decremented` (ausente o ya
  * `compensated`), el filtro no matchea y NADA se modifica.
  *
@@ -252,27 +371,41 @@ const compensateProductOp = async (productId, operationId) => {
       stockOps: { $elemMatch: { id: operationId, state: STOCK_OP_STATE.DECREMENTED } },
     },
     [
+      // 1. Bind del registro de la operación (qty + size son autoridad del doc).
       {
         $set: {
-          stock: {
-            $add: [
-              "$stock",
+          __compOp: {
+            $first: {
+              $filter: {
+                input: "$stockOps",
+                as: "o",
+                cond: { $eq: ["$$o.id", operationId] },
+              },
+            },
+          },
+        },
+      },
+      // 2. Restituye stock (agregado + variante si aplica) y marca compensated.
+      {
+        $set: {
+          stock: { $add: ["$stock", "$__compOp.qty"] },
+          variants: {
+            $cond: [
+              { $ne: [{ $ifNull: ["$__compOp.size", null] }, null] },
               {
-                $let: {
-                  vars: {
-                    op: {
-                      $first: {
-                        $filter: {
-                          input: "$stockOps",
-                          as: "o",
-                          cond: { $eq: ["$$o.id", operationId] },
-                        },
-                      },
-                    },
+                $map: {
+                  input: { $ifNull: ["$variants", []] },
+                  as: "v",
+                  in: {
+                    $cond: [
+                      { $eq: ["$$v.size", "$__compOp.size"] },
+                      { $mergeObjects: ["$$v", { stock: { $add: ["$$v.stock", "$__compOp.qty"] } }] },
+                      "$$v",
+                    ],
                   },
-                  in: "$$op.qty", // autoridad de la cantidad = el documento
                 },
               },
+              "$variants",
             ],
           },
           stockOps: {
@@ -290,6 +423,8 @@ const compensateProductOp = async (productId, operationId) => {
           },
         },
       },
+      // 3. Limpia el campo temporal.
+      { $unset: "__compOp" },
     ],
     { returnDocument: "after", updatePipeline: true },
   );
@@ -302,7 +437,9 @@ const compensateProductOp = async (productId, operationId) => {
  */
 const pruneStockOpsForOrder = async (order) => {
   if (!order || order.finalized !== true) return; // C-A: nunca podar una orden no finalizada
-  const opIds = order.requestedItems.map((l) => operationIdFor(order._id, l.productId));
+  // TALLAS — el id del ledger incorpora la talla (ver `operationIdFor`), así que
+  // la poda reconstruye la tripleta exacta (orden + producto + talla).
+  const opIds = order.requestedItems.map((l) => operationIdFor(order._id, l.productId, l.size));
   const productIds = order.requestedItems.map((l) => l.productId);
   await ProductModel.updateMany(
     { _id: { $in: productIds } },
@@ -356,19 +493,29 @@ const compensateOrder = async (skeletonOrId) => {
   const productIds = skeleton.requestedItems.map((l) => l.productId);
 
   for (const line of skeleton.requestedItems) {
-    const operationId = operationIdFor(skeleton._id, line.productId);
+    const operationId = operationIdFor(skeleton._id, line.productId, line.size);
     opIds.push(operationId);
     let action = "noop";
     let compensatedQty = 0;
     try {
+      // `compensateProductOp` lee `qty` Y `size` del propio registro del ledger.
       const updated = await compensateProductOp(line.productId, operationId);
       if (updated) {
         action = "compensated";
         const op = (updated.stockOps || []).find((o) => o.id === operationId);
         compensatedQty = op ? op.qty : 0;
-        // Espejo advisory (best-effort): NO condiciona nada.
+        // Espejo advisory (best-effort): NO condiciona nada. Con tallas puede
+        // haber varias líneas del mismo producto -> se acota además por `size`.
         await OrderModel.updateOne(
-          { _id: skeleton._id, finalized: false, "stockAdjustments.productId": line.productId },
+          {
+            _id: skeleton._id,
+            finalized: false,
+            stockAdjustments: {
+              $elemMatch: line.size
+                ? { productId: line.productId, size: line.size }
+                : { productId: line.productId },
+            },
+          },
           {
             $set: {
               "stockAdjustments.$.state": STOCK_ADJUSTMENT_STATE.COMPENSATED,
@@ -466,12 +613,17 @@ const createOrder = async (input) => {
       idempotencyKey: input.idempotencyKey,
       source: "web",
       userId,
-      requestedItems: normalized.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+      requestedItems: normalized.map((l) => ({
+        productId: l.productId,
+        quantity: l.quantity,
+        ...(l.size ? { size: l.size } : {}),
+      })),
       // Espejo ADVISORY (F4.3-B-R2.2): 1:1 con `requestedItems`, todas en
       // `pending`. La autoridad de la mutación de stock es `product_b.stockOps`;
       // esto es solo auditoría y puede quedar desincronizado tras un crash.
       stockAdjustments: normalized.map((l) => ({
         productId: l.productId,
+        ...(l.size ? { size: l.size } : {}),
         requestedQty: l.quantity,
         decrementedQty: 0,
         compensatedQty: 0,
@@ -508,12 +660,16 @@ const createOrder = async (input) => {
       const p = byId.get(line.productId);
       // Contrato opaco (F4.2): inexistente y no-comprable devuelven lo mismo.
       if (!isPublishedActive(p)) throw ERR.notAvailable();
-      // BLOCKER-01: en F4 no se venden productos con variantes.
-      if (Array.isArray(p.variants) && p.variants.length > 0) {
-        throw ERR.business(
-          "Uno de los productos requiere elegir talla o color y no está disponible para compra en línea",
-        );
-      }
+      // TALLAS — reemplaza BLOCKER-01. Un producto con variantes YA es comprable,
+      // pero SIEMPRE con una talla válida (obligatoria, existente, no ambigua).
+      // Un producto simple sigue sin aceptar talla. `resolveLineSize` lanza 422
+      // con mensaje sin PII si algo no cuadra. La talla CANÓNICA (la del propio
+      // producto) se fija en la línea para el decremento y el snapshot; el
+      // `operationId` del ledger es consistente entre creación y recuperación
+      // porque `sizeKeyFor` normaliza a minúsculas (ver `operationIdFor`).
+      const { size } = resolveLineSize(p, line.size);
+      line.size = size;
+
       const unitPrice = Math.round(Number(p.price));
       if (!Number.isInteger(unitPrice) || unitPrice <= 0) {
         throw ERR.business("Uno de los productos no tiene un precio válido");
@@ -528,12 +684,16 @@ const createOrder = async (input) => {
     // condiciona nada (un crash entre ambos es inocuo).
     const S = STOCK_ADJUSTMENT_STATE;
     for (const line of normalized) {
-      const operationId = operationIdFor(skeleton._id, line.productId);
-      const res = await decrementProductStock(line.productId, line.quantity, operationId);
+      // TALLAS — el `operationId` incorpora la talla (una op por talla) y
+      // `decrementProductStock` baja `variants[].stock` + el agregado `stock` en
+      // la MISMA escritura atómica. Sin talla -> camino simple intacto.
+      const operationId = operationIdFor(skeleton._id, line.productId, line.size);
+      const res = await decrementProductStock(line.productId, line.quantity, operationId, line.size);
 
       if (res.outcome === "stock_conflict") {
         const p = byId.get(line.productId);
-        throw ERR.stock(`No hay stock suficiente de "${p ? p.name : "un producto"}"`);
+        const label = line.size ? ` (talla ${line.size})` : "";
+        throw ERR.stock(`No hay stock suficiente de "${p ? p.name : "un producto"}"${label}`);
       }
       if (res.outcome === "already_compensated") {
         // Esta operación ya fue descontada y revertida por un recovery: el
@@ -543,13 +703,18 @@ const createOrder = async (input) => {
       // "decremented" | "already_decremented" (reintento del driver): el stock
       // de este producto YA está descontado y registrado en `stockOps`.
 
-      // Espejo advisory (best-effort).
+      // Espejo advisory (best-effort). Con tallas puede haber varias líneas del
+      // mismo producto -> se acota también por `size` (o su ausencia).
       await OrderModel.updateOne(
         {
           _id: skeleton._id,
           finalized: false,
           stockAdjustments: {
-            $elemMatch: { productId: line.productId, state: { $in: [S.PENDING, S.DECREMENTING] } },
+            $elemMatch: {
+              productId: line.productId,
+              ...(line.size ? { size: line.size } : {}),
+              state: { $in: [S.PENDING, S.DECREMENTING] },
+            },
           },
         },
         {
@@ -570,6 +735,9 @@ const createOrder = async (input) => {
         productName: p.name,
         slug: p.slug,
         image: mainImageUrl(p.images),
+        // TALLAS — talla CANÓNICA congelada en el snapshot (omitida si el
+        // producto no tiene variantes).
+        ...(line.size ? { size: line.size } : {}),
         unitPrice,
         quantity: line.quantity,
         subtotal: unitPrice * line.quantity,

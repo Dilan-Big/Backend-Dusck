@@ -356,10 +356,13 @@ test("projection: estructura completa del detalle", async (t) => {
   assert.equal(data.shippingAddress.reference, "Frente al parque");
 
   assert.equal(data.items.length, 1);
+  // TALLAS — `size` es un campo ADITIVO de cada ítem (`null` cuando el producto
+  // no maneja tallas). El resto del contrato del detalle no cambia.
   assert.deepEqual(
     Object.keys(data.items[0]).sort(),
-    ["image", "productId", "productName", "quantity", "slug", "subtotal", "unitPrice"].sort(),
+    ["image", "productId", "productName", "quantity", "size", "slug", "subtotal", "unitPrice"].sort(),
   );
+  assert.equal(data.items[0].size, null);
   assert.equal(typeof data.items[0].productId, "string");
 
   assert.deepEqual(Object.keys(data.totals).sort(), ["currency", "grandTotal", "itemsSubtotal", "shipping"].sort());

@@ -238,7 +238,11 @@ test("Order: requestedItems no puede estar vacío", async () => {
   await assertInvalidAt(validOrder({ requestedItems: [] }), "requestedItems");
 });
 
-test("Order: requestedItems NO admite variantId/size/color/sku (se ignoran, no se persisten)", async () => {
+// TALLAS — el comportamiento esperado CAMBIÓ con la funcionalidad de tallas:
+// `size` SÍ se persiste ahora (texto libre, el mismo de `variants[].size`).
+// `variantId`/`color`/`sku` siguen SIN persistirse (no se añaden: solo la talla
+// es necesaria para transportar la selección).
+test("Order: requestedItems persiste `size` pero NO variantId/color/sku", async () => {
   const doc = new OrderModel(
     validOrder({
       requestedItems: [
@@ -247,18 +251,30 @@ test("Order: requestedItems NO admite variantId/size/color/sku (se ignoran, no s
     }),
   );
   assert.equal(await validate(doc.toObject()), undefined);
-  assert.deepEqual(Object.keys(doc.requestedItems[0].toObject()).sort(), ["productId", "quantity"].sort());
+  assert.deepEqual(
+    Object.keys(doc.requestedItems[0].toObject()).sort(),
+    ["productId", "quantity", "size"].sort(),
+  );
+  assert.equal(doc.requestedItems[0].size, "M");
 });
 
-test("Order: items NO admite variantId/size/color/sku (F4 sin variantes)", async () => {
+test("Order: items persiste `size` pero NO variantId/color/sku", async () => {
   const doc = new OrderModel(
     validOrder({ items: [{ ...validItem(), variantId: new mongoose.Types.ObjectId(), size: "L", color: "Azul", sku: "Y" }] }),
   );
   assert.equal(await validate(doc.toObject()), undefined);
   assert.deepEqual(
     Object.keys(doc.items[0].toObject()).sort(),
-    ["image", "productId", "productName", "quantity", "slug", "subtotal", "unitPrice"],
+    ["image", "productId", "productName", "quantity", "size", "slug", "subtotal", "unitPrice"],
   );
+  assert.equal(doc.items[0].size, "L");
+});
+
+test("Order: items/requestedItems sin `size` siguen siendo válidos (producto simple)", async () => {
+  const doc = new OrderModel(validOrder({ items: [validItem()] }));
+  assert.equal(await validate(doc.toObject()), undefined);
+  assert.equal(doc.items[0].size, undefined);
+  assert.equal(doc.requestedItems[0].size, undefined);
 });
 
 test("Order: phone debe ser móvil colombiano normalizado (10 dígitos, empieza por 3)", async () => {

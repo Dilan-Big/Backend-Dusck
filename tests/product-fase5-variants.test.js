@@ -524,15 +524,20 @@ test("F5 checkout: decrementProductStock SIGUE excluyendo productos con variante
   assert.equal(fresh.stock, 10, "el stock agregado no debe haberse tocado");
 });
 
-test("F5 cart: CartItem sigue siendo { productId, quantity } — sin variantId (contrato NO modificado por F5)", async (t) => {
+// TALLAS — el comportamiento esperado CAMBIÓ: CartItem ahora lleva un `size`
+// OPCIONAL (texto libre, el mismo de `variants[].size`). Sigue SIN `variantId`
+// y sin ninguna estructura de variantes nueva — solo la talla, que es lo mínimo
+// para transportar la selección. Un item sin `size` == producto simple (compat).
+test("F5 cart: CartItem lleva { productId, quantity, size } — size opcional, sin variantId", async (t) => {
   if (guard(t)) return;
   const CartModel = (await import("../src/models/cart.model.js")).default;
   const paths = CartModel.schema.path("items").schema.paths;
   assert.deepEqual(
     Object.keys(paths).sort(),
-    ["productId", "quantity"].sort(),
-    "el subschema de CartItem no debe tener más campos que productId/quantity",
+    ["productId", "quantity", "size"].sort(),
+    "CartItem = productId/quantity/size (nada de variantId/color/sku)",
   );
+  assert.equal(paths.size.isRequired, undefined, "`size` NO es obligatorio (producto simple no la lleva)");
 });
 
 // ===========================================================================

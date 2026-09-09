@@ -56,7 +56,17 @@ const updateMyCart = async (req, res) => {
             });
         }
 
-        const data = await dbUpdateCartByUserId(userId, { productId, quantity });
+        // TALLAS — `size` OPCIONAL. Si viene, debe ser un string (nunca un
+        // objeto tipo `{ $ne: null }`). El valor de negocio (talla válida para
+        // ESTE producto) lo resuelve `dbUpdateCart` contra `variants[].size`.
+        const { size } = req.body;
+        if (size !== undefined && size !== null && typeof size !== 'string') {
+            return res.status(400).json({
+                msg: 'La talla no es válida'
+            });
+        }
+
+        const data = await dbUpdateCartByUserId(userId, { productId, quantity, size });
          res.status(200).json({
             msg: 'Se actualizó tu carrito exitosamente',
             data: data
@@ -69,6 +79,16 @@ const updateMyCart = async (req, res) => {
         // publicado también da 404) — no se confirma que el producto exista.
         if (error.code === 'PRODUCT_NOT_PURCHASABLE') {
             return res.status(404).json({
+                msg: error.message
+            });
+        }
+
+        // TALLAS — selección de talla inválida para este producto (talla
+        // obligatoria y ausente, talla inexistente, talla ambigua por matriz
+        // color×talla, o talla enviada a un producto sin tallaje). Todos son
+        // errores de la PETICIÓN -> 400.
+        if (['SIZE_REQUIRED', 'SIZE_INVALID', 'SIZE_AMBIGUOUS', 'SIZE_NOT_APPLICABLE'].includes(error.code)) {
+            return res.status(400).json({
                 msg: error.message
             });
         }
@@ -121,7 +141,13 @@ const removeMyCartItem = async (req, res) => {
             });
         }
 
-        const data = await dbRemoveCartItemByUserId(userId, productId);
+        // TALLAS — `?size=` OPCIONAL en la query. Con talla se quita solo esa
+        // línea; sin talla se quitan todas las líneas de ese producto (compat).
+        // Se ignora si no es un string simple (defensa ante `?size[$ne]=`).
+        const rawSize = req.query?.size;
+        const size = typeof rawSize === 'string' ? rawSize : undefined;
+
+        const data = await dbRemoveCartItemByUserId(userId, productId, size);
         
         res.status(200).json({
             msg: 'Se eliminó el producto de tu carrito exitosamente',

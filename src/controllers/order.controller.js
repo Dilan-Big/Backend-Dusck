@@ -54,6 +54,8 @@ const toPublicOrder = (order) => {
       productName: it.productName,
       slug: it.slug,
       image: it.image ?? null,
+      // TALLAS — aditivo: `null` cuando el producto no tiene tallas.
+      size: it.size ?? null,
       unitPrice: it.unitPrice,
       quantity: it.quantity,
       subtotal: it.subtotal,
@@ -103,7 +105,13 @@ const createOrderController = async (req, res) => {
     const items = Array.isArray(body.items)
       ? body.items.map((line) =>
           line && typeof line === "object"
-            ? { productId: line.productId, quantity: line.quantity }
+            ? // TALLAS — `size` OPCIONAL por línea. Lista blanca: nada más del
+              // objeto de línea se propaga (nunca `variantId`/`color`/`sku`/precio).
+              {
+                productId: line.productId,
+                quantity: line.quantity,
+                ...(line.size !== undefined ? { size: line.size } : {}),
+              }
             : line,
         )
       : body.items; // no-array -> el servicio lo rechaza con 400
@@ -426,6 +434,8 @@ const toAdminOrderDetail = (order) => {
       productName: it.productName ?? null,
       slug: it.slug ?? null,
       image: it.image ?? null,
+      // TALLAS — aditivo: `null` cuando el producto no tiene tallas.
+      size: it.size ?? null,
       unitPrice: it.unitPrice ?? null,
       quantity: it.quantity ?? null,
       subtotal: it.subtotal ?? null,

@@ -19,6 +19,57 @@ const CART_POPULATE_ADMIN = { path: 'items.productId', select: 'name price image
 const isPurchasable = (product) =>
   !!product && product.status === PRODUCT_STATUS.PUBLISHED && product.isActive === true;
 
+// TALLAS — ¿el producto maneja tallas? (tiene al menos una variante embebida).
+const hasVariants = (product) =>
+  !!product && Array.isArray(product.variants) && product.variants.length > 0;
+
+// TALLAS — Resuelve la talla pedida contra las variantes REALES del producto
+// (nunca contra un enum: coincidencia exacta con `variants[].size` tras trim).
+// Devuelve:
+//   { ok:true, size, availableStock }   talla válida -> `size` canónico (el del
+//                                       producto) y el stock de ESA variante.
+//   { ok:false, code }                  SIZE_REQUIRED | SIZE_INVALID | SIZE_AMBIGUOUS
+//                                       | SIZE_NOT_APPLICABLE
+//
+// SIZE_AMBIGUOUS: la talla coincide con MÁS de una variante (matriz color×talla).
+// Esos productos requieren además elegir color y quedan fuera de la compra en
+// línea por ahora — igual que TODOS los productos con variantes antes de esta
+// funcionalidad. NO es una regresión: es un límite de alcance documentado.
+const resolveSizeSelection = (product, rawSize) => {
+  const trimmed = typeof rawSize === "string" ? rawSize.trim() : "";
+
+  if (!hasVariants(product)) {
+    // Producto simple: NO acepta talla (defensa; el storefront no la envía).
+    if (trimmed) return { ok: false, code: "SIZE_NOT_APPLICABLE" };
+    return { ok: true, size: undefined, availableStock: product.stock };
+  }
+
+  if (!trimmed) return { ok: false, code: "SIZE_REQUIRED" };
+
+  const matches = product.variants.filter(
+    (v) => typeof v.size === "string" && v.size.trim() === trimmed,
+  );
+  if (matches.length === 0) return { ok: false, code: "SIZE_INVALID" };
+  if (matches.length > 1) return { ok: false, code: "SIZE_AMBIGUOUS" };
+
+  return { ok: true, size: matches[0].size.trim(), availableStock: matches[0].stock };
+};
+
+// TALLAS — mensaje + code de dominio para un fallo de `resolveSizeSelection`.
+// `.code` lo mapea el controller a un status HTTP (400 datos / 404 no disponible).
+const sizeError = (code, productName) => {
+  const name = productName ? ` "${productName}"` : "";
+  const map = {
+    SIZE_REQUIRED: `Debes elegir una talla para${name || " el producto"}`,
+    SIZE_INVALID: `La talla seleccionada no existe para${name || " el producto"}`,
+    SIZE_AMBIGUOUS: `El producto${name} requiere además elegir color y no está disponible para compra en línea`,
+    SIZE_NOT_APPLICABLE: `El producto${name} no maneja tallas`,
+  };
+  const err = new Error(map[code] || "La talla seleccionada no es válida");
+  err.code = code;
+  return err;
+};
+
 //Solo admin	Todos los carritos de todos los usuarios
 const dbGetCart = async () => {
     return await CartModel.find().populate(CART_POPULATE_ADMIN);
@@ -32,6 +83,17 @@ const dbGetOrCreateCartByUserId = async (userId) => {
    ).populate(CART_POPULATE_CLIENT);
 
 }
+
+// TALLAS — Sub-filtro Mongo para localizar el item de una línea (productId + size).
+//   producto simple  -> `{ productId, size: null }`  (matchea talla ausente o null)
+//   producto c/talla -> `{ productId, size: <talla canónica> }`
+// Así dos tallas del mismo producto son elementos DISTINTOS del array `items`.
+const itemMatch = (productId, size) => (size ? { productId, size } : { productId, size: null });
+
+// TALLAS — misma discriminación pero en memoria (sobre un item ya cargado).
+const sameLine = (item, productId, size) =>
+    item.productId.toString() === productId.toString() &&
+    (size ? item.size === size : !item.size);
 
 // Actualiza un producto (suma/resta cantidad) dentro de un carrito específico por su _id
 const dbUpdateCart = async (id, inputData) => {
@@ -54,45 +116,63 @@ const dbUpdateCart = async (id, inputData) => {
         throw err;
      }
 
+     // TALLAS — Resuelve la talla contra las variantes REALES del producto.
+     //   · Al AGREGAR/INCREMENTAR (quantity > 0): un producto con variantes EXIGE
+     //     una talla válida; el stock que se valida es el de ESA variante.
+     //   · Al DISMINUIR/quitar (quantity <= 0): si se envía talla, se respeta
+     //     para no tocar otra línea; si no, se cae al camino simple (compat con
+     //     el borrado de un producto que dejó de estar publicado).
+     let size;
+     let availableStock = product.stock;
      if (quantity > 0) {
-        const existingCart = await CartModel.findOne({_id: id, 'items.productId': productId });
-        const currentItem = existingCart?.items.find(i => i.productId.toString() === productId.toString());
+        const sel = resolveSizeSelection(product, inputData.size);
+        if (!sel.ok) throw sizeError(sel.code, product.name);
+        size = sel.size;
+        availableStock = sel.availableStock;
+     } else if (typeof inputData.size === 'string' && inputData.size.trim()) {
+        size = inputData.size.trim();
+     }
+
+     if (quantity > 0) {
+        const existingCart = await CartModel.findOne({ _id: id, items: { $elemMatch: itemMatch(productId, size) } });
+        const currentItem = existingCart?.items.find((i) => sameLine(i, productId, size));
         const currentQuantity = currentItem ? currentItem.quantity : 0;
 
-        if (currentQuantity + quantity > product.stock) {
-            throw new Error(`solo hay ${product.stock} unidades disponibles de "${product.name}"`);
+        if (currentQuantity + quantity > availableStock) {
+            const label = size ? `"${product.name}" (talla ${size})` : `"${product.name}"`;
+            throw new Error(`solo hay ${availableStock} unidades disponibles de ${label}`);
         }
      }
-     
-     // 1. Intentamos SUMAR la cantidad si el producto YA existe en el carrito
+
+     // 1. Intentamos SUMAR la cantidad si esa línea (productId + size) YA existe
      let updateCart = await CartModel.findOneAndUpdate(
-        { _id: id, 'items.productId': productId},
+        { _id: id, items: { $elemMatch: itemMatch(productId, size) } },
         { $inc: {'items.$.quantity': quantity}},
         { returnDocument: 'after', runValidators: true }
      );
 
      if (updateCart) {
-         // 2. El producto existía: revisamos la cantidad resultante
-         const item = updateCart.items.find(i => i.productId.toString() === productId.toString());
+         // 2. La línea existía: revisamos la cantidad resultante
+         const item = updateCart.items.find((i) => sameLine(i, productId, size));
 
          if (item && item.quantity <= 0) {
-            // Si quedó en 0 o menos, lo eliminamos del carrito
+            // Si quedó en 0 o menos, eliminamos ESA línea (nunca las otras tallas)
             updateCart = await CartModel.findOneAndUpdate(
                 { _id: id},
-                { $pull: { items: {productId } } },
+                { $pull: { items: itemMatch(productId, size) } },
                 { returnDocument: 'after' }
             )
-         } 
+         }
      } else {
-        // 3. El producto NO existía en el carrito: lo agregamos como nuevo (solo si quantity > 0)
+        // 3. La línea NO existía en el carrito: la agregamos como nueva (solo si quantity > 0)
         if(quantity > 0) {
             updateCart = await CartModel.findOneAndUpdate(
                 { _id: id},
-                { $push: {items: { productId, quantity } } },
+                { $push: {items: { productId, quantity, ...(size ? { size } : {}) } } },
                 {returnDocument: 'after', runValidators: true }
             );
         } else {
-             // Si mandan cantidad <= 0 para un producto que no existe, no hay nada que hacer
+             // Si mandan cantidad <= 0 para una línea que no existe, no hay nada que hacer
              updateCart = await CartModel.findById(id);
         }
      }
@@ -109,21 +189,27 @@ const dbUpdateCartByUserId = async (userId, inputData) => {
 
 
 // Elimina un producto del carrito por completo, sin importar la cantidad que tuviera.
-const dbRemoveCartItem = async (id, productId) => {
+// TALLAS — `size` OPCIONAL: con talla se quita solo ESA línea (productId + size);
+// sin talla se conserva el comportamiento previo (quita todas las líneas de ese
+// producto — útil para un producto que dejó de estar publicado o para un
+// producto simple).
+const dbRemoveCartItem = async (id, productId, size) => {
+    const trimmedSize = typeof size === 'string' && size.trim() ? size.trim() : undefined;
+    const pull = trimmedSize ? { productId, size: trimmedSize } : { productId };
     const updateCart = await CartModel.findOneAndUpdate(
         { _id: id},
-        { $pull: {items: {productId } } },
+        { $pull: {items: pull } },
         { returnDocument: 'after' }
     );
-    
+
     if( !updateCart ) return null;
 
     return await updateCart.populate(CART_POPULATE_CLIENT);
 }
 //Eliminar un prodcuto por ID
-const dbRemoveCartItemByUserId = async (userId, productId ) => {
+const dbRemoveCartItemByUserId = async (userId, productId, size ) => {
     const cart = await dbGetOrCreateCartByUserId(userId);
-    return await dbRemoveCartItem(cart._id, productId);
+    return await dbRemoveCartItem(cart._id, productId, size);
 }
 
 //Elimina un carrito por su _id

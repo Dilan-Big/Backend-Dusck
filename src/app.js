@@ -11,6 +11,7 @@ import productRoutes from './routes/product.routes.js'
 import roleRoutes from './routes/role.routes.js'
 import cartRoutes from './routes/cart.routes.js'
 import orderRoutes from './routes/order.routes.js'
+import dashboardRoutes from './routes/dashboard.routes.js'
 
 // App Express ya configurada, SIN abrir conexion a Mongo ni escuchar puerto.
 // El arranque real (conexion + listen) vive en index.js; asi los tests de
@@ -52,6 +53,7 @@ app.use('/api/category', categoryRoutes);
 app.use('/api/product', productRoutes)
 app.use('/api/cart',cartRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/roles',roleRoutes);
 
 export default app;

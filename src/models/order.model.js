@@ -35,7 +35,12 @@ import {
 //     sin `orderNumber`/`items`/`totals` resueltos todavía. Por eso `orderNumber`
 //     es opcional + índice `sparse`, y `finalized` arranca en `false`.
 //   - `userId` opcional (null = invitado / guest checkout).
-//   - SIN variantes: `items` NO lleva variantId/size/color/sku (F4.2 lo cerró).
+//   - TALLAS: `requestedItems` e `items` llevan un campo `size` OPCIONAL (texto
+//     libre, el mismo de `product_b.variants[].size`). Un producto simple
+//     (variants: []) NUNCA lo lleva y su línea se comporta igual que siempre.
+//     NO se añade `variantId`, `color` ni `sku` — solo la talla, que es lo
+//     único necesario para transportar la selección hasta el descuento de
+//     stock por variante y su restitución en una cancelación.
 
 const intValidator = (label) => ({
   validator: Number.isInteger,
@@ -52,6 +57,15 @@ const RequestedItemSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "product_b",
       required: [true, "Cada línea solicitada necesita un producto"],
+    },
+    // TALLAS — talla de la variante pedida (solo productos CON variantes).
+    // Opcional: ausente == producto simple. `compensateOrder` y
+    // `pruneStockOpsForOrder` reconstruyen el `operationId` del ledger a partir
+    // de (productId + size), así que este valor es autoridad de recuperación.
+    size: {
+      type: String,
+      trim: true,
+      maxlength: [20, "La talla no puede exceder los 20 caracteres"],
     },
     quantity: {
       type: Number,
@@ -78,6 +92,14 @@ const StockAdjustmentSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "product_b",
       required: [true, "Cada ajuste de stock necesita un producto"],
+    },
+    // TALLAS — espejo advisory de la talla de la línea (ver RequestedItemSchema).
+    // Solo auditoría: el mirror `stockAdjustments` NUNCA se consulta para decidir
+    // si el stock se movió (autoridad = `product_b.stockOps[]`).
+    size: {
+      type: String,
+      trim: true,
+      maxlength: [20, "La talla no puede exceder los 20 caracteres"],
     },
     // = cantidad de `requestedItems` para este producto. Inmutable.
     requestedQty: {
@@ -221,6 +243,15 @@ const OrderItemSchema = new Schema(
       required: [true, "Cada ítem necesita el slug del producto (snapshot)"],
       trim: true,
       maxlength: [160, "El slug no puede exceder los 160 caracteres"],
+    },
+    // TALLAS — talla comprada, CONGELADA en el snapshot (igual que `unitPrice` /
+    // `productName`). Opcional: ausente == producto sin tallas. NO se añade
+    // `variantId`/`color`/`sku`: solo la talla, que es lo que el cliente eligió
+    // y lo que la cancelación necesita para devolver stock a la variante exacta.
+    size: {
+      type: String,
+      trim: true,
+      maxlength: [20, "La talla no puede exceder los 20 caracteres"],
     },
     // URL de la imagen principal en el momento de la compra. Coherente con
     // `product_b.images[].url` (string). `null` si el producto no tenía imagen.

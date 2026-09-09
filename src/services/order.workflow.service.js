@@ -31,9 +31,17 @@ import {
 const fail = (status, msg) => ({ ok: false, status, msg });
 
 // operationId de la restitución por cancelación. Distinto del que usa el
-// checkout (`${orderId}:${productId}`) para no colisionar nunca con una entrada
-// del decremento original ni con su poda.
-const restockOpIdFor = (orderId, productId) => `${String(orderId)}:${String(productId)}:cancel`;
+// checkout (`${orderId}:${productId}[:${size}]`) por el sufijo `:cancel`, para no
+// colisionar nunca con una entrada del decremento original ni con su poda.
+//
+// TALLAS — incorpora la talla (una restitución por talla), igual que
+// `order.service.js::operationIdFor`. Producto simple -> `${orderId}:${productId}:cancel`
+// (formato histórico intacto, los tests previos siguen matcheando).
+const restockOpIdFor = (orderId, productId, size) => {
+  const key = size ? String(size).trim().toLowerCase() : "";
+  const base = `${String(orderId)}:${String(productId)}`;
+  return key ? `${base}:${key}:cancel` : `${base}:cancel`;
+};
 
 /**
  * Restituye al inventario las unidades que el checkout reservó, para una orden
@@ -64,24 +72,36 @@ const restockOrderInventory = async (order) => {
 
   const items = Array.isArray(order.items) ? order.items : [];
   for (const line of items) {
-    const opId = restockOpIdFor(orderId, line.productId);
+    // TALLAS — si la línea comprada llevaba talla, la restitución devuelve las
+    // unidades a `variants[].stock` de ESA talla Y al agregado `stock`, en la
+    // MISMA escritura atómica (nunca se desincronizan). Sin talla -> `$inc stock`
+    // a secas, exactamente como antes.
+    const size = typeof line.size === "string" && line.size.trim() ? line.size.trim() : undefined;
+    const opId = restockOpIdFor(orderId, line.productId, size);
     let action = "noop";
     try {
+      const inc = size
+        ? { stock: line.quantity, "variants.$[v].stock": line.quantity }
+        : { stock: line.quantity };
+      const options = { returnDocument: "after" };
+      if (size) options.arrayFilters = [{ "v.size": size }];
+
       const updated = await ProductModel.findOneAndUpdate(
         { _id: line.productId, "stockOps.id": { $ne: opId } },
         {
-          $inc: { stock: line.quantity },
+          $inc: inc,
           $push: {
             stockOps: {
               id: opId,
               qty: line.quantity,
+              ...(size ? { size } : {}),
               state: STOCK_OP_STATE.COMPENSATED,
               at: new Date(),
               compensatedAt: new Date(),
             },
           },
         },
-        { returnDocument: "after" },
+        options,
       );
       // `updated` != null  -> ESTA llamada restituyó la línea.
       // `updated` == null  -> ya estaba restituida (guard) o el producto no
@@ -94,6 +114,7 @@ const restockOrderInventory = async (order) => {
     report.lines.push({
       productId: String(line.productId),
       quantity: line.quantity,
+      ...(size ? { size } : {}),
       action,
     });
   }
